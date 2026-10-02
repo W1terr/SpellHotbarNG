@@ -164,8 +164,7 @@ namespace UI
 
 		std::string ShortKeyName(std::uint32_t a_key)
 		{
-			auto name = Keys::Name(a_key);
-			return name == "-" ? std::string{} : name;
+			return a_key == Keys::kNone ? std::string{} : Keys::Name(a_key);  // "-" is also the minus key's name
 		}
 
 		// Top left corner of a bar of the given size; a_slide moves it towards the screen edge it's anchored to

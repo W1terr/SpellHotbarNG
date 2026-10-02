@@ -132,26 +132,91 @@ namespace CastAnim
 
 		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
 
-		// Our hand art effects. Only compared against the game's effect list, never dereferenced directly:
-		// the game owns and deletes them. (ApplyArtObject's return value can't be used: on 1.6+/1.7 it
-		// returns a success flag, not the effect.)
-		std::vector<const RE::ModelReferenceEffect*> handArt;
-
-		std::vector<const RE::ModelReferenceEffect*> PlayerArtEffects(const RE::BGSArtObject* a_art)
+		// Our hand art. ApplyArtObject doesn't always create the effect right away: called from a thread other than the
+		// one that owns the effect list, it queues it as a task for a later frame (a glow that showed up late was never
+		// found and stayed for its whole safety duration). So the effects are picked up from the game's list on every
+		// update, and ones that only show up after the cast ended are removed as soon as they appear. They're only
+		// compared against that list, never dereferenced outside of it: the game owns and deletes them.
+		// (ApplyArtObject's return value can't be used: on 1.6+/1.7 it returns a success flag, not the effect.)
+		struct HandArt
 		{
-			std::vector<const RE::ModelReferenceEffect*> out;
+			const RE::BGSArtObject*                      art{ nullptr };
+			std::vector<const RE::ModelReferenceEffect*> foreign;  // effects of this art that were there before (not ours)
+			std::vector<const RE::ModelReferenceEffect*> found;    // ours, still in the list
+			std::size_t                                  expected{ 0 };  // effects asked for
+			std::size_t                                  claimed{ 0 };   // effects found so far
+			bool                                         stopped{ false };
+			float                                        sinceStop{ 0.0f };
+		};
+		std::vector<HandArt> handArts;  // the running one last; stopped ones stay until all their effects showed up
+		constexpr float      kHandArtWait = 1.0f;  // how long a stopped hand art waits for effects not created yet
+
+		bool Contains(const std::vector<const RE::ModelReferenceEffect*>& a_list, const RE::ModelReferenceEffect* a_effect)
+		{
+			return std::ranges::find(a_list, a_effect) != a_list.end();
+		}
+
+		template <class F>
+		void ForEachPlayerArtEffect(F&& a_func)
+		{
 			const auto processLists = RE::ProcessLists::GetSingleton();
 			const auto player = Player();
 			if (!processLists || !player) {
-				return out;
+				return;
 			}
+			const auto handle = player->GetHandle().native_handle();
 			processLists->ForEachModelEffect([&](RE::ModelReferenceEffect* a_effect) {
-				if (a_effect && a_effect->artObject == a_art && a_effect->target.native_handle() == player->GetHandle().native_handle()) {
-					out.push_back(a_effect);
+				if (a_effect && a_effect->artObject && a_effect->target.native_handle() == handle) {
+					a_func(a_effect);
 				}
 				return RE::BSContainer::ForEachResult::kContinue;
 			});
-			return out;
+		}
+
+		// Claims new effects of our arts (newest hand art first) and ends the ones of stopped hand arts
+		void UpdateHandArt(float a_delta)
+		{
+			if (handArts.empty()) {
+				return;
+			}
+			std::vector<const RE::ModelReferenceEffect*> seen;  // effects of our arts still in the list
+			ForEachPlayerArtEffect([&](RE::ModelReferenceEffect* a_effect) {
+				HandArt* owner = nullptr;
+				HandArt* newest = nullptr;  // a new effect belongs to the newest hand art of its art
+				for (auto& entry : handArts) {
+					if (entry.art != a_effect->artObject) {
+						continue;
+					}
+					newest = &entry;
+					if (Contains(entry.found, a_effect)) {
+						owner = &entry;
+						break;
+					}
+				}
+				if (!newest) {
+					return;
+				}
+				seen.push_back(a_effect);
+				if (!owner && !Contains(newest->foreign, a_effect)) {
+					owner = newest;
+					owner->found.push_back(a_effect);
+					++owner->claimed;
+				}
+				if (owner && owner->stopped) {
+					a_effect->finished = true;
+				}
+			});
+			// forget deleted effects (their addresses can be reused)
+			for (auto& entry : handArts) {
+				std::erase_if(entry.found, [&](auto a_effect) { return !Contains(seen, a_effect); });
+				std::erase_if(entry.foreign, [&](auto a_effect) { return !Contains(seen, a_effect); });
+				if (entry.stopped) {
+					entry.sinceStop += a_delta;
+				}
+			}
+			std::erase_if(handArts, [](const HandArt& a_entry) {
+				return a_entry.stopped && (a_entry.claimed >= a_entry.expected || a_entry.sinceStop > kHandArtWait);
+			});
 		}
 
 		bool FirstPerson()
@@ -474,6 +539,7 @@ namespace CastAnim
 	void Update(float a_delta)
 	{
 		sinceStop = std::min(sinceStop + a_delta, kLongAgo);
+		UpdateHandArt(a_delta);
 		RestoreSyncIdleLocomotion();  // the graph picked the shout's start state during the last update
 		ShoutBlend::Update(shoutActive.load());  // 3rd person moving casts: arms from the casting clip
 		if (!lingering) {
@@ -502,38 +568,38 @@ namespace CastAnim
 		if (!player || !art) {
 			return;
 		}
-		const auto before = PlayerArtEffects(art);
+		HandArt entry{ .art = art };
+		ForEachPlayerArtEffect([&](RE::ModelReferenceEffect* a_effect) {
+			const bool ours = std::ranges::any_of(handArts, [&](const HandArt& a_other) {
+				return Contains(a_other.found, a_effect);
+			});
+			if (a_effect->artObject == art && !ours) {
+				entry.foreign.push_back(a_effect);
+			}
+		});
 		for (const bool left : { false, true }) {
 			if (a_side == (left ? Side::kRight : Side::kLeft)) {
 				continue;  // one hand casts glow on their hand only
 			}
 			if (const auto node = MagicNode(left)) {
 				player->ApplyArtObject(art, a_maxDuration, nullptr, false, false, node);
+				++entry.expected;
 			} else {
 				logs::debug("Hand art: no {} magic node", left ? "left" : "right");
 			}
 		}
-		for (const auto added : PlayerArtEffects(art)) {
-			if (std::ranges::find(before, added) == before.end()) {
-				handArt.push_back(added);
-			}
+		if (entry.expected > 0) {
+			handArts.push_back(std::move(entry));
+			UpdateHandArt(0.0f);  // effects created right away
 		}
 	}
 
 	void StopHandArt()
 	{
-		if (handArt.empty()) {
-			return;
+		for (auto& entry : handArts) {
+			entry.stopped = true;
 		}
-		if (const auto processLists = RE::ProcessLists::GetSingleton()) {
-			processLists->ForEachModelEffect([](RE::ModelReferenceEffect* a_effect) {
-				if (std::ranges::find(handArt, a_effect) != handArt.end()) {
-					a_effect->finished = true;
-				}
-				return RE::BSContainer::ForEachResult::kContinue;
-			});
-		}
-		handArt.clear();
+		UpdateHandArt(0.0f);  // effects that show up later are ended by Update
 	}
 
 	void Reset()
