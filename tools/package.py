@@ -77,7 +77,7 @@ def patch_plugin_xml(patch: dict) -> str:
 VANILLA_ANIM_TEXT = (
     "By default Spell Hotbar NG uses the vanilla Skyrim casting animations. They come with the main files "
     "(Open Animation Replacer plays them), so there is nothing to choose here. Only pick a patch below if you use one of those animation mods and "
-    "want its animations instead."
+    "want its animations for hotbar casts too."
 )
 
 
@@ -119,7 +119,7 @@ def module_config() -> str:
                         </plugin>
                     </plugins>
                 </group>
-                <group name="Optional: use an animation mod made for Spell Hotbar 2 instead (only pick the ones you have)" type="SelectAny">
+                <group name="Optional: use the animations of a mod you have installed (only pick the ones you have)" type="SelectAny">
                     <plugins order="Explicit">{anim_patches}
                     </plugins>
                 </group>
@@ -158,7 +158,7 @@ def main():
     copy(ROOT / "res" / "CREDITS.txt", CORE / DATA_DIR / "CREDITS.txt")
 
     # outputs of older versions that would otherwise end up in the zip (preset profiles, installer images)
-    for stale in (CORE / DATA_DIR / "presets", STAGING / "20 Auto Profiles"):
+    for stale in (CORE / DATA_DIR / "presets", STAGING / "20 Auto Profiles", CORE / "Interface"):
         shutil.rmtree(stale, ignore_errors=True)
     shutil.rmtree(IMAGES, ignore_errors=True)  # installer images (banner, layout previews) are no longer used
 

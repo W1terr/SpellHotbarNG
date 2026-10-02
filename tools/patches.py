@@ -1,11 +1,15 @@
 """
-Compatibility patches for animation mods made for Spell Hotbar 2.
+Compatibility patches for animation mods.
 
-Those mods are OAR submods whose conditions read Spell Hotbar 2's ESP globals, which never change without
+Mods made for Spell Hotbar 2 are OAR submods whose conditions read Spell Hotbar 2's ESP globals, which never change without
 Spell Hotbar 2. A patch ships no animations: it only adds an OAR "user.json" next to each submod's config.json
 (OAR uses user.json instead of config.json), pointing the submod at Spell Hotbar NG's "SpellHotbarNG_Casting"
 condition with a priority above Spell Hotbar NG's own animations, plus a timing file with the lengths of the
 mod's release clips so the bar waits for them (Data\\SKSE\\Plugins\\SpellHotbarNG\\animations\\*.json).
+
+Mods that replace the normal magic casting clips in Dynamic Animation Replacer folders ("dar_folders"): their
+animations can't be shipped, so the patch is only a file listing the mod's folders. At game start the DLL copies those
+folders' clips into OAR submods for the shout clips and reads the clip lengths itself (src/casting/Replacers.cpp).
 """
 
 import json
@@ -42,11 +46,29 @@ SH2_ANIM_REPLACER = {
     },
 }
 
-PATCHES = [SH2_ANIM_REPLACER]
+# Smooth Magic Casting Animation (Nexus 45799, version 4.2). 996 = base set, the rest are variants by spell school
+# (1516/1616/1716 Restoration, 1816/1826 Conjuration, 1830/1831 Destruction or not, for dual casts). Third person only.
+# 1391/1392 only have ritualspell_ready, which hotbar casts don't use in third person.
+SMOOTH_MAGIC_CASTING = {
+    "name": "Smooth Magic Casting Animation",
+    "folder": "Smooth Magic Casting Animation",
+    "description": "Use the animations of \"Smooth Magic Casting Animation\" for Spell Hotbar NG casts. "
+                   "Needs that mod installed; contains no animations itself. At game start Spell Hotbar NG copies its "
+                   "animations for the hotbar (in MO2 they end up in the overwrite folder).",
+    "dar_folders": [996, 1516, 1616, 1716, 1816, 1826, 1830, 1831],
+}
+
+PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING]
 
 
 def build_patch(patch: dict, out_dir: Path) -> int:
     """Writes the patch files into out_dir (a mod root: meshes\\..., SKSE\\...). Returns the number of files."""
+    timings = out_dir / "SKSE/Plugins/SpellHotbarNG/animations" / f"{patch['folder']}.json"
+    timings.parent.mkdir(parents=True, exist_ok=True)
+    if "dar_folders" in patch:
+        timings.write_text(json.dumps({"name": patch["name"], "darFolders": patch["dar_folders"]}, indent=4), encoding="utf-8")
+        return 1
+
     count = 0
     for submod, (type_id, hand) in patch["submods"].items():
         config = {
@@ -62,7 +84,5 @@ def build_patch(patch: dict, out_dir: Path) -> int:
         dest.write_text(json.dumps(config, indent=4), encoding="utf-8")
         count += 1
 
-    timings = out_dir / "SKSE/Plugins/SpellHotbarNG/animations" / f"{patch['folder']}.json"
-    timings.parent.mkdir(parents=True, exist_ok=True)
     timings.write_text(json.dumps({"name": patch["name"], "releaseTime": patch["release_time"]}, indent=4), encoding="utf-8")
     return count + 1

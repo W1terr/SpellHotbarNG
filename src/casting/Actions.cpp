@@ -23,7 +23,8 @@ namespace Actions
 			bool              keyHeld{ false };
 			Source            source{ Source::kRightHand };
 			bool              dual{ false };
-			float             cost{ 0.0f };
+			bool              bothHands{ false };  // "Both" without the dual casting perk: one cast from each hand, like vanilla
+			float             cost{ 0.0f };        // total (both hands together)
 			float             charge{ 0.0f };
 			float             chargeTotal{ 0.0f };
 			bool              channeling{ false };
@@ -69,8 +70,8 @@ namespace Actions
 			return RE::PlayerCharacter::GetSingleton();
 		}
 
-		// No magic while jumping / falling, swimming (vanilla can't cast while swimming either) or attacking
-		// (weapon swings incl. power attacks, bashes, drawing a bow)
+		// No magic while jumping / falling, swimming (vanilla can't cast while swimming either), attacking (weapon swings
+		// incl. power attacks, bashes, drawing a bow) or drawing / sheathing (a running cast stops when that starts)
 		bool CanCastNow()
 		{
 			const auto player = Player();
@@ -78,7 +79,9 @@ namespace Actions
 				return false;
 			}
 			const auto state = player->AsActorState();
-			return !state->IsSwimming() && state->GetAttackState() == RE::ATTACK_STATE_ENUM::kNone;
+			const auto weapon = state->GetWeaponState();
+			return !state->IsSwimming() && state->GetAttackState() == RE::ATTACK_STATE_ENUM::kNone &&
+			       (weapon == RE::WEAPON_STATE::kSheathed || weapon == RE::WEAPON_STATE::kDrawn);
 		}
 
 		void Queue(Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld)
@@ -214,6 +217,13 @@ namespace Actions
 			return HasDualCastPerk(a_item);
 		}
 
+		// "Both" without the dual casting perk (or for spells without dual cast effects): the spell is cast from each
+		// hand on its own, like pressing both attack buttons in vanilla. Two-handed spells are one cast anyway.
+		bool WantsBothHands(RE::MagicItem* a_item, Hand a_hand)
+		{
+			return a_hand == Hand::kBoth && a_item && !a_item->IsTwoHanded() && !WantsDualCast(a_item, a_hand);
+		}
+
 		float SpellCost(RE::MagicItem* a_item, bool a_dual)
 		{
 			const auto player = Player();
@@ -295,6 +305,15 @@ namespace Actions
 			gcdTotal = gcdRemaining = a_animated ? std::max(kMinRecovery, CastAnim::ReleaseRemaining()) : kMinRecovery;
 		}
 
+		// the hand caster(s) a cast fires from
+		std::vector<Source> Sources(const ActiveCast& a_cast)
+		{
+			if (a_cast.bothHands) {
+				return { Source::kRightHand, Source::kLeftHand };
+			}
+			return { a_cast.source };
+		}
+
 		void EndCast()
 		{
 			if (!cast) {
@@ -313,10 +332,12 @@ namespace Actions
 				return;
 			}
 			if (const auto player = Player()) {
-				if (const auto caster = player->GetMagicCaster(cast->source)) {
-					caster->InterruptCast(false);
-					if (cast->dual) {
-						caster->SetDualCasting(false);
+				for (const auto source : Sources(*cast)) {
+					if (const auto caster = player->GetMagicCaster(source)) {
+						caster->InterruptCast(false);
+						if (cast->dual) {
+							caster->SetDualCasting(false);
+						}
 					}
 				}
 				if (player->IsCasting(cast->item)) {
@@ -351,8 +372,13 @@ namespace Actions
 				}
 			}
 
-			const auto caster = player->GetMagicCaster(cast->source);
-			if (!caster) {
+			std::vector<RE::MagicCaster*> casters;
+			for (const auto source : Sources(*cast)) {
+				if (const auto caster = player->GetMagicCaster(source)) {
+					casters.push_back(caster);
+				}
+			}
+			if (casters.empty()) {
 				return false;
 			}
 
@@ -362,25 +388,30 @@ namespace Actions
 			                    crosshair  ? nullptr :
 			                                 player->GetActorRuntimeData().currentCombatTarget.get().get();
 
-			if (cast->dual) {
-				caster->SetDualCasting(true);
-			}
 			if (concentration) {
-				caster->currentSpellCost = cast->cost;  // magicka per second, drained by the caster
+				for (const auto caster : casters) {
+					caster->currentSpellCost = cast->cost / static_cast<float>(casters.size());  // magicka per second, drained by the caster
+				}
 			} else if (!cast->scroll) {
 				player->AsActorValueOwner()->DamageActorValue(RE::ActorValue::kMagicka, cast->cost);
 			}
 
 			if (crosshair) {
 				PlayerControl::FaceCamera(-1.0f);
-				const PlayerControl::ScopedCrosshairAim aim(caster);
-				caster->CastSpellImmediate(item, false, target, 1.0f, false, 0.0f, player);
-			} else {
-				caster->CastSpellImmediate(item, false, target, 1.0f, false, 0.0f, targetSelf ? nullptr : player);
 			}
-
-			if (cast->dual && !concentration) {
-				caster->SetDualCasting(false);
+			for (const auto caster : casters) {
+				if (cast->dual) {
+					caster->SetDualCasting(true);
+				}
+				if (crosshair) {
+					const PlayerControl::ScopedCrosshairAim aim(caster);
+					caster->CastSpellImmediate(item, false, target, 1.0f, false, 0.0f, player);
+				} else {
+					caster->CastSpellImmediate(item, false, target, 1.0f, false, 0.0f, targetSelf ? nullptr : player);
+				}
+				if (cast->dual && !concentration) {
+					caster->SetDualCasting(false);
+				}
 			}
 
 			// Target location spells (runes, summons) that found no valid spot keep "casting" forever
@@ -424,7 +455,8 @@ namespace Actions
 			next.keyHeld = a_keyHeld;
 			next.source = SourceFor(a_hand);
 			next.dual = !a_scroll && WantsDualCast(a_item, a_hand);
-			next.cost = SpellCost(a_item, next.dual);
+			next.bothHands = !a_scroll && WantsBothHands(a_item, a_hand);
+			next.cost = SpellCost(a_item, next.dual) * (next.bothHands ? 2.0f : 1.0f);
 
 			const bool concentration = a_item->GetCastingType() == CastingType::kConcentration;
 			if (concentration && !a_keyHeld) {
@@ -441,12 +473,13 @@ namespace Actions
 			next.animated = CastAnim::Available();
 			next.chargeTotal = concentration ? 0.0f : std::max(0.0f, a_item->GetChargeTime());
 			// which hand(s) the animation and hand glow use
-			const auto side = next.dual || a_item->IsTwoHanded()    ? CastAnim::Side::kBoth :
+			const bool twoHands = next.dual || next.bothHands;
+			const auto side = twoHands || a_item->IsTwoHanded()     ? CastAnim::Side::kBoth :
 			                  next.source == Source::kLeftHand ? CastAnim::Side::kLeft :
 			                                                     CastAnim::Side::kRight;
 			if (next.animated) {
 				next.chargeTotal = concentration ? kAnimConcWindup : std::max(next.chargeTotal, kAnimMinCharge);
-				switch (CastAnim::Start(CastAnim::Choose(a_item, next.dual), side)) {
+				switch (CastAnim::Start(CastAnim::Choose(a_item, twoHands), side, a_item)) {
 				case CastAnim::StartResult::kBusy:
 					// the previous release animation is still playing: wait for it, don't cast over it
 					Queue(a_page, a_slot, a_key, a_keyHeld);
@@ -890,7 +923,7 @@ namespace Actions
 		if (spell->GetCastingType() == CastingType::kConcentration) {
 			return Magicka() > 0.0f;
 		}
-		return Magicka() >= CachedSpellCost(spell, WantsDualCast(spell, a_hand));
+		return Magicka() >= CachedSpellCost(spell, WantsDualCast(spell, a_hand)) * (WantsBothHands(spell, a_hand) ? 2.0f : 1.0f);
 	}
 
 	bool IsAvailable(RE::TESForm* a_form)

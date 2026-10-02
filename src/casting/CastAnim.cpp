@@ -1,6 +1,8 @@
 #include "casting/CastAnim.h"
 
 #include "core/Config.h"
+#include "casting/Replacers.h"
+#include "casting/ShoutBlend.h"
 #include "casting/VanillaCast.h"
 #include "OpenAnimationReplacerAPI-Conditions.h"
 
@@ -54,7 +56,8 @@ namespace CastAnim
 				_type = static_cast<Conditions::INumericConditionComponent*>(
 					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Animation",
 						"Casting animation of the running hotbar cast. 0 = any, 1 aimed, 2 self, 3 aimed concentration, "
-						"4 self concentration, 5 dual aimed, 6 dual self, 7 dual concentration, 8 ritual (two-handed spell)."));
+						"4 self concentration, 5 dual aimed, 6 dual self, 7 dual concentration, 8 ritual (two-handed spell), "
+						"9 dual self concentration."));
 				_hand = static_cast<Conditions::INumericConditionComponent*>(
 					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Hand",
 						"Hand of the running hotbar cast. 0 = any, 1 right, 2 left. Dual casts and two-handed spells only match 0."));
@@ -67,11 +70,15 @@ namespace CastAnim
 					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Phase",
 						"0 = any, 1 = charging / channeling, 2 = release animation playing, 3 = release animation done. Use it "
 						"with Interruptible for looping clips that start while charging (1st person walk / run)."));
+				_variant = static_cast<Conditions::INumericConditionComponent*>(
+					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Variant",
+						"0 = any. Otherwise only when the running cast picked this clip of an installed casting animation mod "
+						"(set by the submods Spell Hotbar NG generates in SpellHotbarNG_Replacers, don't use it yourself)."));
 			}
 
 			RE::BSString GetName() const override { return CONDITION_NAME.data(); }
 			RE::BSString GetDescription() const override { return "True while Spell Hotbar NG plays a casting animation of the given type."; }
-			REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
+			REL::Version GetRequiredVersion() const override { return { 1, 4, 0 }; }
 			RE::BSString GetArgument() const override
 			{
 				return std::format("{} / hand {} / shout state {} / phase {}", _type->GetArgument().c_str(), _hand->GetArgument().c_str(),
@@ -108,6 +115,10 @@ namespace CastAnim
 				if (wantedPhase != 0 && wantedPhase != phase.load()) {
 					return false;
 				}
+				const int variant = static_cast<int>(_variant->GetNumericValue(a_refr));
+				if (variant != 0 && !Replacers::Matches(variant)) {
+					return false;
+				}
 				const int hand = static_cast<int>(_hand->GetNumericValue(a_refr));
 				return (hand != 1 && hand != 2) || hand == currentSide.load();
 			}
@@ -116,6 +127,7 @@ namespace CastAnim
 			Conditions::INumericConditionComponent* _hand;
 			Conditions::INumericConditionComponent* _shoutState;
 			Conditions::INumericConditionComponent* _phase;
+			Conditions::INumericConditionComponent* _variant;
 		};
 
 		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
@@ -142,21 +154,29 @@ namespace CastAnim
 			return out;
 		}
 
-		RE::NiAVObject* MagicNode(bool a_left)
-		{
-			const auto player = Player();
-			const auto caster = player->GetMagicCaster(a_left ? RE::MagicSystem::CastingSource::kLeftHand : RE::MagicSystem::CastingSource::kRightHand);
-			if (const auto actorCaster = skyrim_cast<RE::ActorMagicCaster*>(caster); actorCaster && actorCaster->magicNode) {
-				return actorCaster->magicNode;
-			}
-			const auto root = player->Get3D();
-			return root ? root->GetObjectByName(a_left ? "NPC L MagicNode [LMag]"sv : "NPC R MagicNode [RMag]"sv) : nullptr;
-		}
-
 		bool FirstPerson()
 		{
 			const auto camera = RE::PlayerCamera::GetSingleton();
 			return camera && camera->IsInFirstPerson();
+		}
+
+		// The hand's magic node on the skeleton that is drawn now (1st or 3rd person). The hand caster's own magicNode
+		// is only kept up to date for a hand holding a spell: an empty left hand's points at the 3rd person body, which
+		// isn't drawn in 1st person, so the glow didn't show there.
+		RE::NiAVObject* MagicNode(bool a_left)
+		{
+			const auto player = Player();
+			const auto name = a_left ? "NPC L MagicNode [LMag]"sv : "NPC R MagicNode [RMag]"sv;
+			if (const auto root = player->Get3D(FirstPerson())) {
+				if (const auto node = root->GetObjectByName(name)) {
+					return node;
+				}
+			}
+			const auto caster = player->GetMagicCaster(a_left ? RE::MagicSystem::CastingSource::kLeftHand : RE::MagicSystem::CastingSource::kRightHand);
+			if (const auto actorCaster = skyrim_cast<RE::ActorMagicCaster*>(caster); actorCaster && actorCaster->magicNode) {
+				return actorCaster->magicNode;
+			}
+			return nullptr;
 		}
 
 		bool Notify(std::string_view a_event)
@@ -248,13 +268,31 @@ namespace CastAnim
 			case Type::kAimedConc:
 			case Type::kSelfConc:
 			case Type::kDualConc:
+			case Type::kDualSelfConc:
 				return 0.4f;    // "ShoutStop" blends back to idle
 			default:
 				return 0.0f;
 			}
 		}
 
-		// Length of the release clip of a cast for the current camera: the animation replacer's timing file, or ours
+		bool Concentration(Type a_type)
+		{
+			return a_type == Type::kAimedConc || a_type == Type::kSelfConc || a_type == Type::kDualConc ||
+			       a_type == Type::kDualSelfConc;
+		}
+
+		// Length of the release clip that plays: the installed casting animation mod's clip, or ours
+		float ClipReleaseDuration(Type a_type, bool a_firstPerson)
+		{
+			if (!Concentration(a_type)) {
+				if (const auto duration = Replacers::ReleaseDuration(a_firstPerson)) {
+					return *duration;
+				}
+			}
+			return VanillaReleaseDuration(a_type, a_firstPerson);
+		}
+
+		// Length of the release clip of a cast for the current camera: an animation patch's timing file, or the clip's
 		float ReleaseDuration(Type a_type, Side a_side)
 		{
 			const bool firstPerson = FirstPerson();
@@ -263,7 +301,7 @@ namespace CastAnim
 					return it->second;
 				}
 			}
-			return VanillaReleaseDuration(a_type, firstPerson);
+			return ClipReleaseDuration(a_type, firstPerson);
 		}
 
 		// a release / stop animation of ours is still playing or blending out
@@ -288,7 +326,7 @@ namespace CastAnim
 				const auto dash = key.find('-');
 				int        type = 0;
 				const auto typeText = std::string_view(key).substr(0, dash);
-				if (std::from_chars(typeText.data(), typeText.data() + typeText.size(), type).ec != std::errc{} || type < 1 || type > 8) {
+				if (std::from_chars(typeText.data(), typeText.data() + typeText.size(), type).ec != std::errc{} || type < 1 || type > 9) {
 					continue;
 				}
 				int side = 0;
@@ -360,8 +398,8 @@ namespace CastAnim
 		const bool conc = a_item->GetCastingType() == RE::MagicSystem::CastingType::kConcentration;
 		const bool twoHanded = a_item->IsTwoHanded();
 		if (conc) {
-			if ((a_dual || twoHanded) && !self) {
-				return Type::kDualConc;
+			if (a_dual || twoHanded) {
+				return self ? Type::kDualSelfConc : Type::kDualConc;
 			}
 			return self ? Type::kSelfConc : Type::kAimedConc;
 		}
@@ -374,12 +412,14 @@ namespace CastAnim
 		return self ? Type::kSelf : Type::kAimed;
 	}
 
-	StartResult Start(Type a_type, Side a_side)
+	StartResult Start(Type a_type, Side a_side, RE::MagicItem* a_item)
 	{
 		const int previous = current.load();
 		const int previousSide = currentSide.load();
 		const bool previousShout = shoutActive.load();
 		const int  previousPhase = phase.load();
+		const auto previousClips = Replacers::Save();
+		Replacers::Choose(a_type, a_side, a_item);
 		current = static_cast<int>(a_type);
 		currentSide = static_cast<int>(a_side);
 		shoutActive = true;
@@ -395,6 +435,7 @@ namespace CastAnim
 		currentSide = previousSide;
 		shoutActive = previousShout;
 		phase = previousPhase;
+		Replacers::Restore(previousClips);
 		// our release animation is still running / blending out: the caller waits for it (Update ends the shout
 		// state after the clip) instead of casting without animation
 		return Busy() ? StartResult::kBusy : StartResult::kRefused;
@@ -418,7 +459,7 @@ namespace CastAnim
 		phase = 2;  // before the event: interruptible clips (1st person walk / run) switch to the release clip
 		Notify("MT_BreathExhaleShort"sv);
 		Linger(CurrentReleaseDuration(), true);
-		readyAt = std::max(0.0f, VanillaReleaseDuration(static_cast<Type>(current.load()), FirstPerson()) - kReadyLead);
+		readyAt = std::max(0.0f, ClipReleaseDuration(static_cast<Type>(current.load()), FirstPerson()) - kReadyLead);
 		logs::debug("Casting animation {} released", current.load());
 	}
 
@@ -434,6 +475,7 @@ namespace CastAnim
 	{
 		sinceStop = std::min(sinceStop + a_delta, kLongAgo);
 		RestoreSyncIdleLocomotion();  // the graph picked the shout's start state during the last update
+		ShoutBlend::Update(shoutActive.load());  // 3rd person moving casts: arms from the casting clip
 		if (!lingering) {
 			return;
 		}
@@ -467,6 +509,8 @@ namespace CastAnim
 			}
 			if (const auto node = MagicNode(left)) {
 				player->ApplyArtObject(art, a_maxDuration, nullptr, false, false, node);
+			} else {
+				logs::debug("Hand art: no {} magic node", left ? "left" : "right");
 			}
 		}
 		for (const auto added : PlayerArtEffects(art)) {
@@ -500,6 +544,8 @@ namespace CastAnim
 		phase = 0;
 		lingering = false;
 		sinceStop = kLongAgo;
+		Replacers::Clear();
+		ShoutBlend::Restore();
 		StopHandArt();
 		RestoreSyncIdleLocomotion();
 	}

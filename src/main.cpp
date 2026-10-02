@@ -1,6 +1,7 @@
 #include "casting/Actions.h"
 #include "core/Bindings.h"
 #include "casting/CastAnim.h"
+#include "casting/Replacers.h"
 #include "core/Config.h"
 #include "ui/Icons.h"
 #include "core/Input.h"
@@ -65,6 +66,7 @@ SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 	SKSE::Init(a_skse);
 	logs::info("Spell Hotbar NG loading");
 
+	Replacers::Generate();  // before OAR reads its folders (kInputLoaded)
 	Bindings::RegisterSerialization();
 	InstallHooks();
 	SKSE::GetMessagingInterface()->RegisterListener(OnMessage);

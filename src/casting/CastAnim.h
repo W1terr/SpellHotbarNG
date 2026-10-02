@@ -5,6 +5,7 @@
 // clips while the custom OAR condition "SpellHotbarNG_Casting" matches the running cast. Nothing in the
 // hands changes. The clips + OAR configs ship in meshes\actors\character\OpenAnimationReplacer\SpellHotbarNG.
 //
+// Casting animation mods made for the normal magic clips (DAR folders) are used through animation patches, see Replacers.h.
 // Other animation mods can target the same condition ("Animation" = Type, "Hand" = Side) with a higher OAR
 // priority. If their release clips have other lengths, a timing file tells the bar how long to wait, see
 // LoadTimings(). "ShoutState" and "Phase" serve clips that are also used outside of our cast (1st person walk / run
@@ -20,8 +21,9 @@ namespace CastAnim
 		kSelfConc = 4,    // one hand concentration, on self
 		kDualAimed = 5,   // dual cast, aimed
 		kDualSelf = 6,    // dual cast, on self
-		kDualConc = 7,    // dual / two-handed concentration
-		kRitual = 8       // two-handed (ritual) fire and forget spells
+		kDualConc = 7,    // dual / two-handed concentration, aimed
+		kRitual = 8,      // two-handed (ritual) fire and forget spells
+		kDualSelfConc = 9 // dual / two-handed concentration, on self (healing with both hands)
 	};
 
 	// The hand(s) a cast comes from: the condition's "Hand" value
@@ -51,8 +53,8 @@ namespace CastAnim
 		kRefused  // the behavior graph can't play it (swimming, mounted, ...), cast without animation
 	};
 
-	// Raise the hand(s) / charge loop.
-	StartResult Start(Type a_type, Side a_side);
+	// Raise the hand(s) / charge loop. a_item picks the clips of installed casting animation mods (see Replacers.h).
+	StartResult Start(Type a_type, Side a_side, RE::MagicItem* a_item);
 	// seconds until the running release / stop animation is over and blended back to idle (0 if none);
 	// no new cast starts before that
 	float ReleaseRemaining();

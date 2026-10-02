@@ -40,6 +40,30 @@ MOVE_BLEND_TIME = 0.1  # seconds, blend when the walk / run clip switches from t
 MOVE_TARGETS = [f"mt_{gait}{direction}.hkx" for gait in ("walk", "run") for direction in (
     "forward", "forwardleft", "forwardright", "left", "right", "backward", "backwardleft", "backwardright")]
 
+# 3rd person: the moving shout state blends the shout clip (arms half) with the unarmed walk / run (animations\male and
+# \female), so the arms swing half way between running and casting. While a hotbar cast holds the shout state those clips
+# become the magic casting locomotion (magcast_*: arms held for casting, legs run), like the magic behavior does.
+# Any cast type, so one submod ("0_locomotion"). The same list is in src/casting/Replacers.cpp.
+LOCOMOTION_CLIPS = [
+    ("mt_walkforward.hkx", "magcast_walkforward.hkx"),
+    ("mt_walkforwardright.hkx", "magcast_walkfrwrdright.hkx"),
+    ("mt_walkright.hkx", "magcast_walkright.hkx"),
+    ("mt_walkbackwardright.hkx", "magcast_walkbckwrdrht.hkx"),
+    ("mt_walkbackward.hkx", "magcast_walkbackward.hkx"),
+    ("mt_walkbackwardleft.hkx", "magcast_walkbckwrdleft.hkx"),
+    ("mt_walkleft.hkx", "magcast_walkleft.hkx"),
+    ("mt_walkforwardleft.hkx", "magcast_walkforwrdleft.hkx"),
+    ("mt_runforward.hkx", "magcast_runforward.hkx"),
+    ("mt_runforwardright.hkx", "magcast_runfrwrdright.hkx"),
+    ("mt_runright.hkx", "magcast_runright.hkx"),
+    ("mt_runbackwardright.hkx", "magcast_runbckwrdright.hkx"),
+    ("mt_runbackward.hkx", "magcast_runbackward.hkx"),
+    ("mt_runbackwardleft.hkx", "magcast_runbackwrdleft.hkx"),
+    ("mt_runleft.hkx", "magcast_runleft.hkx"),
+    ("mt_runforwardleft.hkx", "magcast_runforwardleft.hkx"),
+]
+LOCOMOTION_DIRS = ["animations/male", "animations/female"]
+
 HAND_ANY, HAND_RIGHT, HAND_LEFT = 0, 1, 2
 
 # (folder, description, cast type (src/CastAnim.h), hand, charge clip, release clip)
@@ -56,11 +80,12 @@ SUBMODS = [
     ("6_dual_self", "Dual cast, on self", 6, HAND_ANY, "ritualspell_charge.hkx", "ritualspell_release.hkx"),
     ("7_dual_concentration", "Dual concentration", 7, HAND_ANY, "mlhmrh_aimedconcentrationloop.hkx", "dmagaimrelease.hkx"),
     ("8_ritual", "Ritual (two-handed) spell", 8, HAND_ANY, "ritualspell_charge.hkx", "ritualspell_release.hkx"),
+    ("9_dual_self_concentration", "Dual concentration, on self", 9, HAND_ANY, "dmagselfconloop.hkx", "dmagselfrelease.hkx"),
 ]
 
 # 1st person ready loop (the pose a release ends in) per cast type and hand, for the "_move_ready" submods
 def ready_clip(type_id: int, hand: int) -> str:
-    if type_id in (5, 6, 7, 8):
+    if type_id in (5, 6, 7, 8, 9):
         return "ritualspell_ready.hkx"
     prefix = "mlh" if hand == HAND_LEFT else "mrh"
     return f"{prefix}_selfreadyloop.hkx" if type_id in (2, 4) else f"{prefix}_readyloop.hkx"
@@ -141,6 +166,23 @@ def build(bsa_path: Path = GAME_BSA, staging: Path = STAGING):
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_bytes(data)
                 count += 1
+
+    locomotion = out_root / "0_locomotion"
+    locomotion.mkdir(parents=True, exist_ok=True)
+    (locomotion / "config.json").write_text(json.dumps({
+        "name": "0_locomotion",
+        "description": "Spell Hotbar NG casting animation: walk / run with the arms held for casting (3rd person, any cast)",
+        "priority": 2140000001,
+        "interruptible": False,
+        "conditions": [casting_condition(0, HAND_ANY, shout_state=True)],
+    }, indent=4), encoding="utf-8")
+    for target, clip in LOCOMOTION_CLIPS:
+        data = bsa.read(VIEWS["animations"] + clip)
+        for folder in LOCOMOTION_DIRS:
+            dest = locomotion / folder / target
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+            count += 1
     print(f"wrote {count} animation files to {out_root}")
 
 
