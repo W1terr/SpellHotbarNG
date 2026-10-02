@@ -4,14 +4,43 @@
 #include "ui/Icons.h"
 #include "core/Input.h"
 #include "core/Keys.h"
+#include "core/Lang.h"
 
 namespace UI
 {
 	namespace
 	{
+		using Lang::F;
+		using Lang::T;
+
 		constexpr const char* kAnchorNames[] = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" };
 		constexpr const char* kVisibilityNames[] = { "Always", "In combat", "Weapons / magic drawn", "In combat or drawn", "Never (only in menus)", "While sneaking" };
-		constexpr const char* kHandNames[] = { "Auto", "Right", "Left", "Both" };
+		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };
+
+		// Translated texts of a fixed list (combo items)
+		template <std::size_t N>
+		std::array<const char*, N> Translated(const char* const (&a_english)[N])
+		{
+			std::array<const char*, N> out{};
+			std::ranges::transform(a_english, out.begin(), T);
+			return out;
+		}
+
+		// Widest of the texts, for lining up what follows them (translations differ in length)
+		float TextWidth(std::initializer_list<std::string_view> a_texts)
+		{
+			float width = 0.0f;
+			for (const auto text : a_texts) {
+				width = std::max(width, CalcTextSize(text.data(), text.data() + text.size()).x);
+			}
+			return width;
+		}
+
+		// Translated label with a fixed ImGui id, so the widget keeps its state when the language changes
+		std::string Id(const char* a_english, std::string_view a_id)
+		{
+			return std::format("{}###{}", T(a_english), a_id);
+		}
 
 		const ImVec4 kGrey{ 0.6f, 0.6f, 0.6f, 1.0f };
 		const ImVec4 kGold{ 1.0f, 0.82f, 0.4f, 1.0f };
@@ -29,7 +58,7 @@ namespace UI
 			SameLine();
 			TextDisabled("(?)");
 			if (IsItemHovered()) {
-				SetTooltip("%s", a_text);
+				SetTooltip("%s", T(a_text));
 			}
 		}
 
@@ -37,7 +66,7 @@ namespace UI
 		void KeyButton(const char* a_id, std::uint32_t* a_key)
 		{
 			const bool capturing = Input::CaptureTarget() == a_key;
-			const auto label = capturing ? std::format("Press a key...##{}", a_id) : std::format("{}##{}", Keys::Name(*a_key), a_id);
+			const auto label = capturing ? std::format("{}###{}", T("Press a key..."), a_id) : std::format("{}###{}", Keys::Name(*a_key), a_id);
 			if (Button(label.c_str(), ImVec2{ 130.0f, 0.0f })) {
 				if (capturing) {
 					Input::CancelCapture();
@@ -46,13 +75,13 @@ namespace UI
 				}
 			}
 			if (IsItemHovered()) {
-				SetTooltip("Click, then press any key, mouse button or controller button.\nEsc: cancel    Delete: remove the key");
+				SetTooltip("%s", T("Click, then press any key, mouse button or controller button.\nEsc: cancel    Delete: remove the key"));
 			}
 		}
 
 		void ColorOption(const char* a_label, RGBA& a_color, const char* a_help = nullptr)
 		{
-			Changed(ColorEdit4(a_label, a_color.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf));
+			Changed(ColorEdit4(Id(a_label, a_label).c_str(), a_color.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf));
 			if (a_help) {
 				Help(a_help);
 			}
@@ -90,29 +119,29 @@ namespace UI
 			case RE::FormType::Spell:
 				switch (a_form->As<RE::SpellItem>()->GetSpellType()) {
 				case RE::MagicSystem::SpellType::kPower:
-					return "Power";
+					return T("Power");
 				case RE::MagicSystem::SpellType::kLesserPower:
-					return "Lesser Power";
+					return T("Lesser Power");
 				case RE::MagicSystem::SpellType::kVoicePower:
-					return "Voice Power";
+					return T("Voice Power");
 				default:
-					return "Spell";
+					return T("Spell");
 				}
 			case RE::FormType::Scroll:
-				return "Scroll";
+				return T("Scroll");
 			case RE::FormType::Shout:
-				return "Shout";
+				return T("Shout");
 			case RE::FormType::AlchemyItem:
 				{
 					const auto alch = a_form->As<RE::AlchemyItem>();
-					return alch->IsFood() ? "Food" : alch->IsPoison() ? "Poison" : "Potion";
+					return T(alch->IsFood() ? "Food" : alch->IsPoison() ? "Poison" : "Potion");
 				}
 			case RE::FormType::Weapon:
-				return "Weapon";
+				return T("Weapon");
 			case RE::FormType::Armor:
-				return "Apparel";
+				return T("Apparel");
 			default:
-				return "Item";
+				return T("Item");
 			}
 		}
 
@@ -129,13 +158,39 @@ namespace UI
 
 		// ---- profiles -----------------------------------------------------------------------
 
-		char                                  profileName[64]{ "My Profile" };
+		char                                  profileName[128]{ "My Profile" };
 		bool                                  saveBindings{ true };
 		bool                                  loadBindings{ true };
 		int                                   selectedProfile{ -1 };
 		std::string                           profileStatus;
 		std::vector<Profiles::Entry>          profiles;
 		std::chrono::steady_clock::time_point profilesScanned{};
+
+		void LanguageOption()
+		{
+			SeparatorText(T("Language"));
+			const auto  languages = Lang::All();
+			const auto& current = Lang::Current();
+
+			std::vector<const char*> names;
+			for (const auto& language : languages) {
+				names.push_back(language.name);
+			}
+			int index = static_cast<int>(&current - languages.data());
+			SetNextItemWidth(260.0f);
+			if (Combo("###language", &index, names.data(), static_cast<int>(names.size()))) {
+				Lang::Set(languages[index].id);
+				Config::MarkDirty();
+			}
+			Help("The names of the pages on the left change after you restart the game.");
+
+			// without the right glyphs the framework draws "?" for every letter, so this is also shown in English
+			if (const auto glyphs = Lang::Current().glyphs) {
+				constexpr auto kGlyphHint = "If you see ? instead of letters: in SKSE Menu Framework open Options > Open Settings and set Character Glyphs to {}.";
+				TextWrapped("%s", F(kGlyphHint, glyphs).c_str());
+				TextDisabled("%s", std::vformat(kGlyphHint, std::make_format_args(glyphs)).c_str());
+			}
+		}
 
 		// rescanned every few seconds (files may be added by hand) and after every change
 		void RefreshProfiles(bool a_force)
@@ -153,23 +208,25 @@ namespace UI
 		std::scoped_lock lock(Config::Lock());
 		auto&            s = Config::Get();
 
-		TextWrapped("The bar is previewed live while this menu is open. Sizes are in pixels at 1080p and scale with your resolution.");
-		SeparatorText("Size");
-		Changed(SliderInt("Slots", &s.slotCount, 1, kMaxSlots));
-		Changed(SliderInt("Columns", &s.columns, 1, kMaxSlots));
-		Help("Slots per row. Set it to 1 for a vertical bar.");
-		Changed(SliderFloat("Icon size", &s.iconSize, 16.0f, 200.0f, "%.0f px"));
-		Changed(SliderFloat("Spacing", &s.spacing, 0.0f, 60.0f, "%.0f px"));
+		const auto anchorNames = Translated(kAnchorNames);
 
-		SeparatorText("Position");
+		TextWrapped("%s", T("The bar is previewed live while this menu is open. Sizes are in pixels at 1080p and scale with your resolution."));
+		SeparatorText(T("Size"));
+		Changed(SliderInt(Id("Slots", "slots").c_str(), &s.slotCount, 1, kMaxSlots));
+		Changed(SliderInt(Id("Columns", "columns").c_str(), &s.columns, 1, kMaxSlots));
+		Help("Slots per row. Set it to 1 for a vertical bar.");
+		Changed(SliderFloat(Id("Icon size", "iconSize").c_str(), &s.iconSize, 16.0f, 200.0f, "%.0f px"));
+		Changed(SliderFloat(Id("Spacing", "spacing").c_str(), &s.spacing, 0.0f, 60.0f, "%.0f px"));
+
+		SeparatorText(T("Position"));
 		int anchor = static_cast<int>(s.anchor);
-		if (Combo("Anchor", &anchor, kAnchorNames, static_cast<int>(std::size(kAnchorNames)))) {
+		if (Combo(Id("Anchor", "anchor").c_str(), &anchor, anchorNames.data(), static_cast<int>(anchorNames.size()))) {
 			s.anchor = static_cast<Anchor>(anchor);
 			Changed(true);
 		}
-		Changed(SliderFloat("Offset X", &s.offsetX, -1920.0f, 1920.0f, "%.0f px"));
-		Changed(SliderFloat("Offset Y", &s.offsetY, -1080.0f, 1080.0f, "%.0f px"));
-		if (Button("Reset position")) {
+		Changed(SliderFloat(Id("Offset X", "offsetX").c_str(), &s.offsetX, -1920.0f, 1920.0f, "%.0f px"));
+		Changed(SliderFloat(Id("Offset Y", "offsetY").c_str(), &s.offsetY, -1080.0f, 1080.0f, "%.0f px"));
+		if (Button(Id("Reset position", "resetPosition").c_str())) {
 			s.anchor = Anchor::kBottom;
 			s.offsetX = 0.0f;
 			s.offsetY = -100.0f;
@@ -177,22 +234,22 @@ namespace UI
 		}
 
 		if (s.keyMode == KeyMode::kOblivion) {
-			SeparatorText("Oblivion style bar");
-			TextDisabled("Shows the picked spell, the picked potion and your power. It follows the Show bar setting below.");
+			SeparatorText(T("Oblivion style bar"));
+			TextDisabled("%s", T("Shows the picked spell, the picked potion and your power. It follows the Show bar setting below."));
 			int readyAnchor = static_cast<int>(s.readyAnchor);
-			if (Combo("Anchor##ready", &readyAnchor, kAnchorNames, static_cast<int>(std::size(kAnchorNames)))) {
+			if (Combo(Id("Anchor", "readyAnchor").c_str(), &readyAnchor, anchorNames.data(), static_cast<int>(anchorNames.size()))) {
 				s.readyAnchor = static_cast<Anchor>(readyAnchor);
 				Changed(true);
 			}
-			Changed(SliderFloat("Offset X##ready", &s.readyOffsetX, -1920.0f, 1920.0f, "%.0f px"));
-			Changed(SliderFloat("Offset Y##ready", &s.readyOffsetY, -1080.0f, 1080.0f, "%.0f px"));
-			Changed(Checkbox("Show power##ready", &s.readyShowPower));
-			Changed(Checkbox("Vertical##ready", &s.readyVertical));
-			Changed(Checkbox("Hide the main bar until I pick a spell##ready", &s.readyHideMainBar));
+			Changed(SliderFloat(Id("Offset X", "readyOffsetX").c_str(), &s.readyOffsetX, -1920.0f, 1920.0f, "%.0f px"));
+			Changed(SliderFloat(Id("Offset Y", "readyOffsetY").c_str(), &s.readyOffsetY, -1080.0f, 1080.0f, "%.0f px"));
+			Changed(Checkbox(Id("Show power", "readyShowPower").c_str(), &s.readyShowPower));
+			Changed(Checkbox(Id("Vertical", "readyVertical").c_str(), &s.readyVertical));
+			Changed(Checkbox(Id("Hide the main bar until I pick a spell", "readyHideMainBar").c_str(), &s.readyHideMainBar));
 			Help("On: only this small bar stays on screen. The main bar shows up for a moment when you\n"
 				 "press a slot key (also when binding in the Magic / Inventory menu) or hold an extra bar's key.\n"
 				 "Off: both bars are shown.");
-			if (Button("Reset position##ready")) {
+			if (Button(Id("Reset position", "readyResetPosition").c_str())) {
 				const Settings defaults{};
 				s.readyAnchor = defaults.readyAnchor;
 				s.readyOffsetX = defaults.readyOffsetX;
@@ -201,28 +258,29 @@ namespace UI
 			}
 		}
 
-		SeparatorText("Visibility");
-		int visibility = static_cast<int>(s.visibility);
-		if (Combo("Show bar", &visibility, kVisibilityNames, static_cast<int>(std::size(kVisibilityNames)))) {
+		SeparatorText(T("Visibility"));
+		const auto visibilityNames = Translated(kVisibilityNames);
+		int        visibility = static_cast<int>(s.visibility);
+		if (Combo(Id("Show bar", "visibility").c_str(), &visibility, visibilityNames.data(), static_cast<int>(visibilityNames.size()))) {
 			s.visibility = static_cast<Visibility>(visibility);
 			Changed(true);
 		}
-		Changed(SliderFloat("Opacity", &s.opacity, 0.05f, 1.0f, "%.2f"));
-		Changed(Checkbox("Fade out of combat", &s.fadeOutOfCombat));
+		Changed(SliderFloat(Id("Opacity", "opacity").c_str(), &s.opacity, 0.05f, 1.0f, "%.2f"));
+		Changed(Checkbox(Id("Fade out of combat", "fadeOutOfCombat").c_str(), &s.fadeOutOfCombat));
 		if (s.fadeOutOfCombat) {
-			Changed(SliderFloat("Faded opacity", &s.fadedOpacity, 0.0f, 1.0f, "%.2f"));
+			Changed(SliderFloat(Id("Faded opacity", "fadedOpacity").c_str(), &s.fadedOpacity, 0.0f, 1.0f, "%.2f"));
 		}
-		Changed(Checkbox("Show in magic / inventory / favorites menu", &s.showInMenus));
+		Changed(Checkbox(Id("Show in magic / inventory / favorites menu", "showInMenus").c_str(), &s.showInMenus));
 
-		SeparatorText("Look");
-		Changed(Checkbox("Show empty slots", &s.showEmptySlots));
-		Changed(Checkbox("Show key labels", &s.showKeyLabels));
-		Changed(Checkbox("Show which extra bar is active", &s.showPageName));
-		Changed(Checkbox("Show cooldown seconds", &s.showCooldownText));
-		Changed(Checkbox("Show item counts", &s.showItemCount));
+		SeparatorText(T("Look"));
+		Changed(Checkbox(Id("Show empty slots", "showEmptySlots").c_str(), &s.showEmptySlots));
+		Changed(Checkbox(Id("Show key labels", "showKeyLabels").c_str(), &s.showKeyLabels));
+		Changed(Checkbox(Id("Show which extra bar is active", "showPageName").c_str(), &s.showPageName));
+		Changed(Checkbox(Id("Show cooldown seconds", "showCooldownText").c_str(), &s.showCooldownText));
+		Changed(Checkbox(Id("Show item counts", "showItemCount").c_str(), &s.showItemCount));
 
-		SeparatorText("Colors");
-		TextDisabled("Click a color square to open the picker. The alpha bar sets each color's own transparency.");
+		SeparatorText(T("Colors"));
+		TextDisabled("%s", T("Click a color square to open the picker. The alpha bar sets each color's own transparency."));
 		auto& c = s.colors;
 		ColorOption("Frame", c.frame, "Tint of the slot border. White keeps the original look.");
 		ColorOption("Slot background", c.slotBackground, "Tint of the empty slot texture. White keeps the original look.");
@@ -234,7 +292,7 @@ namespace UI
 		ColorOption("Charge bar", c.chargeBar);
 		ColorOption("Channeling glow", c.channeling, "Highlight of a running concentration spell.");
 		ColorOption("Not enough magicka", c.noMagicka, "Icon tint when the spell costs more magicka than you have.");
-		if (Button("Reset colors")) {
+		if (Button(Id("Reset colors", "resetColors").c_str())) {
 			c = BarColors{};
 			Changed(true);
 		}
@@ -245,16 +303,16 @@ namespace UI
 		// "Hotkeys" tab of the Bindings page: which key uses which slot, extra bars (modifiers), game keys
 		void HotkeysTab(Settings& s)
 		{
-			SeparatorText("What slot keys do");
+			SeparatorText(T("What slot keys do"));
 			int mode = static_cast<int>(s.keyMode);
-			RadioButton("Cast right away", &mode, static_cast<int>(KeyMode::kCast));
+			RadioButton(Id("Cast right away", "modeCast").c_str(), &mode, static_cast<int>(KeyMode::kCast));
 			Help("Pressing a slot casts its spell with the casting animation. Nothing gets equipped,\n"
 				 "your weapons stay in your hands. Powers and shouts are used right away too.");
-			RadioButton("Equip", &mode, static_cast<int>(KeyMode::kEquip));
+			RadioButton(Id("Equip", "modeEquip").c_str(), &mode, static_cast<int>(KeyMode::kEquip));
 			Help("Pressing a slot equips its spell or scroll in the slot's hand (set on the bar's tab:\n"
 				 "Auto = right hand, Both = both hands). Powers and shouts are equipped to your Shout key.\n"
 				 "You then cast them with the game's normal attack / shout buttons.");
-			RadioButton("Oblivion style", &mode, static_cast<int>(KeyMode::kOblivion));
+			RadioButton(Id("Oblivion style", "modeOblivion").c_str(), &mode, static_cast<int>(KeyMode::kOblivion));
 			Help("Pressing a slot picks its spell, then the Cast key casts the picked spell with the\n"
 				 "casting animation. Your hands keep their weapons - great with two-handed weapons.\n"
 				 "Potions are picked for the Potion key. Powers and shouts are equipped to your Shout key.\n"
@@ -265,24 +323,25 @@ namespace UI
 			}
 			if (s.keyMode == KeyMode::kOblivion) {
 				Indent();
+				const float keyColumn = GetCursorPosX() + TextWidth({ T("Cast key"), T("Potion key") }) + GetStyle()->ItemSpacing.x * 2.0f;
 				AlignTextToFramePadding();
-				Text("Cast key");
-				SameLine(140.0f);
+				Text("%s", T("Cast key"));
+				SameLine(keyColumn);
 				KeyButton("castKey", &s.castKey);
 				Help("Casts the picked spell. Hold it for concentration spells.");
 				AlignTextToFramePadding();
-				Text("Potion key");
-				SameLine(140.0f);
+				Text("%s", T("Potion key"));
+				SameLine(keyColumn);
 				KeyButton("potionKey", &s.potionKey);
 				Help("Uses the picked potion.");
-				TextDisabled("The picked spell and potion have their own small bar, see Bar Layout.");
+				TextDisabled("%s", T("The picked spell and potion have their own small bar, see Bar Layout."));
 				Unindent();
 			}
 
-			SeparatorText("Slot keys");
-			TextWrapped("Click a slot's button, then press the key you want for it. Keyboard keys, mouse buttons and "
-						"controller buttons all work.");
-			if (Button("Remove all keys")) {
+			SeparatorText(T("Slot keys"));
+			TextWrapped("%s", T("Click a slot's button, then press the key you want for it. Keyboard keys, mouse buttons and "
+								"controller buttons all work."));
+			if (Button(Id("Remove all keys", "removeAllKeys").c_str())) {
 				s.slotKeys.fill(0);
 				Changed(true);
 			}
@@ -291,37 +350,39 @@ namespace UI
 				for (int i = 0; i < s.slotCount; ++i) {
 					TableNextColumn();
 					AlignTextToFramePadding();
-					Text("Slot %2d", i + 1);
+					Text("%s", F("Slot {}", i + 1).c_str());
 					SameLine();
 					KeyButton(std::format("slot{}", i).c_str(), &s.slotKeys[i]);
 				}
 				EndTable();
 			}
-			TextDisabled("Your bar has %d slots. You can change that in Bar Layout.", s.slotCount);
+			TextDisabled("%s", F("Your bar has {} slots. You can change that in Bar Layout.", s.slotCount).c_str());
 
-			SeparatorText("Extra bars");
-			TextWrapped("Hold a key to switch to another set of spells, like Shift + 1 instead of 1. "
-						"Each extra bar you turn on gets its own tab.");
+			SeparatorText(T("Extra bars"));
+			TextWrapped("%s", T("Hold a key to switch to another set of spells, like Shift + 1 instead of 1. "
+								"Each extra bar you turn on gets its own tab."));
+			const float holdColumn = GetCursorPosX() + GetFrameHeight() + GetStyle()->ItemInnerSpacing.x +
+			                         TextWidth({ F("Extra bar {}", kModifierCount) }) + GetStyle()->ItemSpacing.x * 2.0f;
 			for (int i = 0; i < kModifierCount; ++i) {
 				PushID(i);
-				Changed(Checkbox(std::format("Extra bar {}", i + 1).c_str(), &s.modifierEnabled[i]));
-				SameLine(160.0f);
+				Changed(Checkbox(std::format("{}###enabled", F("Extra bar {}", i + 1)).c_str(), &s.modifierEnabled[i]));
+				SameLine(holdColumn);
 				AlignTextToFramePadding();
-				TextDisabled("hold");
+				TextDisabled("%s", T("hold"));
 				SameLine();
 				KeyButton("mod", &s.modifierKeys[i]);
 				PopID();
 			}
 
-			SeparatorText("Game controls");
-			Changed(Checkbox("Slot keys only work while sneaking", &s.onlyWhileSneaking));
+			SeparatorText(T("Game controls"));
+			Changed(Checkbox(Id("Slot keys only work while sneaking", "onlyWhileSneaking").c_str(), &s.onlyWhileSneaking));
 			Help("On: the bar only reacts while you sneak. Standing up, the keys do what Skyrim normally does\n"
 				 "with them. Tip: Bar Layout > Show bar > While sneaking hides the bar until you crouch.");
-			Changed(Checkbox("Aim spells at the crosshair", &s.aimAtCrosshair));
+			Changed(Checkbox(Id("Aim spells at the crosshair", "aimAtCrosshair").c_str(), &s.aimAtCrosshair));
 			Help("On: aimed spells fly to what's under the crosshair, and in third person your character turns\n"
 				 "to face where the camera looks while casting.\n"
 				 "Off: they fly where your character faces, or at the enemy you're fighting.");
-			Changed(Checkbox("Slot keys only use the hotbar", &s.blockGameInput));
+			Changed(Checkbox(Id("Slot keys only use the hotbar", "blockGameInput").c_str(), &s.blockGameInput));
 			Help("On: pressing a slot key only uses that slot.\n"
 				 "Off: the key also does what Skyrim normally does with it (for example 1 - 8 also use your favorites).\n"
 				 "The keys you hold for extra bars always keep working in the game.");
@@ -332,9 +393,9 @@ namespace UI
 		std::string PageTabLabel(const Settings& a_settings, Page a_page)
 		{
 			if (a_page == Page::kMain) {
-				return "Main bar";
+				return T("Main bar");
 			}
-			return std::format("Hold {}", Keys::Name(a_settings.modifierKeys[static_cast<int>(a_page) - static_cast<int>(Page::kModifier1)]));
+			return F("Hold {}", Keys::Name(a_settings.modifierKeys[static_cast<int>(a_page) - static_cast<int>(Page::kModifier1)]));
 		}
 	}
 
@@ -352,12 +413,12 @@ namespace UI
 				if (!PageEnabled(s, page)) {
 					continue;
 				}
-				if (BeginTabItem(std::format("{}##page{}", PageTabLabel(s, page), p).c_str())) {
+				if (BeginTabItem(std::format("{}###page{}", PageTabLabel(s, page), p).c_str())) {
 					bindingsPage = p;
 					EndTabItem();
 				}
 			}
-			if (BeginTabItem("Hotkeys##hotkeys")) {
+			if (BeginTabItem(Id("Hotkeys", "hotkeys").c_str())) {
 				bindingsPage = kHotkeysTab;
 				EndTabItem();
 			}
@@ -371,22 +432,22 @@ namespace UI
 
 		const auto player = RE::PlayerCharacter::GetSingleton();
 		if (!player || !player->Is3DLoaded()) {
-			TextWrapped("Load a save to see what's on your bar.");
+			TextWrapped("%s", T("Load a save to see what's on your bar."));
 			return;
 		}
 
-		TextWrapped("To put something on the bar: open the Magic menu (or Inventory / Favorites), select a spell or item "
-					"and press a slot key. Hold an extra bar's key at the same time to put it on that bar. "
-					"Doing it again with the same spell removes it.");
+		TextWrapped("%s", T("To put something on the bar: open the Magic menu (or Inventory / Favorites), select a spell or item "
+							"and press a slot key. Hold an extra bar's key at the same time to put it on that bar. "
+							"Doing it again with the same spell removes it."));
 		Spacing();
 
 		const auto page = static_cast<Page>(bindingsPage);
 		const float iconSize = GetFrameHeight() * 1.3f;
 		if (BeginTable("##bindings", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
-			TableSetupColumn("Slot", ImGuiTableColumnFlags_WidthFixed, 0.0f);
-			TableSetupColumn("Key", ImGuiTableColumnFlags_WidthFixed, 0.0f);
-			TableSetupColumn("Spell / item", ImGuiTableColumnFlags_WidthStretch, 0.0f);
-			TableSetupColumn("Hand", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+			TableSetupColumn(T("Slot"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
+			TableSetupColumn(T("Key"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
+			TableSetupColumn(T("Spell / item"), ImGuiTableColumnFlags_WidthStretch, 0.0f);
+			TableSetupColumn(T("Hand"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableHeadersRow();
 
@@ -412,20 +473,21 @@ namespace UI
 					SameLine();
 					TextColored(kGrey, "%s", TypeName(form));
 				} else {
-					TextDisabled("empty");
+					TextDisabled("%s", T("empty"));
 				}
 
 				TableNextColumn();
 				if (form && UsesHand(form)) {
 					int hand = static_cast<int>(binding.hand);
+					const auto handNames = Translated(kHandNames);
 					SetNextItemWidth(90.0f);
-					if (Combo("##hand", &hand, kHandNames, static_cast<int>(std::size(kHandNames)))) {
+					if (Combo("##hand", &hand, handNames.data(), static_cast<int>(handNames.size()))) {
 						binding.hand = static_cast<Hand>(hand);
 					}
 				}
 
 				TableNextColumn();
-				if (form && SmallButton("Clear")) {
+				if (form && SmallButton(Id("Clear", "clear").c_str())) {
 					Bindings::Clear(page, slot);
 				}
 				PopID();
@@ -433,7 +495,7 @@ namespace UI
 			EndTable();
 		}
 		Spacing();
-		if (Button("Clear this bar")) {
+		if (Button(Id("Clear this bar", "clearBar").c_str())) {
 			for (int slot = 0; slot < kMaxSlots; ++slot) {
 				Bindings::Clear(page, slot);
 			}
@@ -447,20 +509,23 @@ namespace UI
 		const auto player = RE::PlayerCharacter::GetSingleton();
 		const bool inGame = player && player->Is3DLoaded();
 
-		TextWrapped("A profile stores all your settings (layout, colors, keys, extra bars) and, if you want, what's on this character's bar.");
+		LanguageOption();
 
-		SeparatorText("Save");
+		SeparatorText(T("Profiles"));
+		TextWrapped("%s", T("A profile stores all your settings (layout, colors, keys, extra bars) and, if you want, what's on this character's bar."));
+
+		SeparatorText(T("Save"));
 		SetNextItemWidth(260.0f);
-		InputText("Name", profileName, sizeof(profileName));
+		InputText(Id("Name", "profileName").c_str(), profileName, sizeof(profileName));
 		BeginDisabled(!inGame);
-		Checkbox("Include what's on my bar##save", &saveBindings);
+		Checkbox(Id("Include what's on my bar", "saveBindings").c_str(), &saveBindings);
 		EndDisabled();
-		if (Button("Save profile")) {
-			profileStatus = Profiles::Save(profileName, saveBindings && inGame) ? std::format("Saved '{}'", profileName) : "Could not save (check the name)";
+		if (Button(Id("Save profile", "saveProfile").c_str())) {
+			profileStatus = Profiles::Save(profileName, saveBindings && inGame) ? F("Saved '{}'", profileName) : T("Could not save (check the name)");
 			RefreshProfiles(true);
 		}
 
-		SeparatorText("Load");
+		SeparatorText(T("Load"));
 		if (BeginListBox("##profiles", ImVec2{ -1.0f, 200.0f })) {
 			for (int i = 0; i < static_cast<int>(profiles.size()); ++i) {
 				if (Selectable(profiles[i].name.c_str(), selectedProfile == i)) {
@@ -470,29 +535,29 @@ namespace UI
 			EndListBox();
 		}
 		if (profiles.empty()) {
-			TextDisabled("No profiles yet.");
+			TextDisabled("%s", T("No profiles yet."));
 		}
 
 		const bool valid = selectedProfile >= 0 && selectedProfile < static_cast<int>(profiles.size());
 		BeginDisabled(!inGame);
-		Checkbox("Also load what's on the bar (if the profile has it)", &loadBindings);
+		Checkbox(Id("Also load what's on the bar (if the profile has it)", "loadBindings").c_str(), &loadBindings);
 		EndDisabled();
 		BeginDisabled(!valid);
-		if (Button("Load")) {
-			profileStatus = Profiles::Load(profiles[selectedProfile], loadBindings && inGame) ? std::format("Loaded '{}'", profiles[selectedProfile].name) : "Could not load profile";
+		if (Button(Id("Load", "loadProfile").c_str())) {
+			profileStatus = Profiles::Load(profiles[selectedProfile], loadBindings && inGame) ? F("Loaded '{}'", profiles[selectedProfile].name) : T("Could not load profile");
 		}
 		SameLine();
-		if (Button("Delete")) {
-			profileStatus = Profiles::Delete(profiles[selectedProfile]) ? "Deleted" : "Could not delete";
+		if (Button(Id("Delete", "deleteProfile").c_str())) {
+			profileStatus = Profiles::Delete(profiles[selectedProfile]) ? T("Deleted") : T("Could not delete");
 			selectedProfile = -1;
 			RefreshProfiles(true);
 		}
 		EndDisabled();
 
-		SeparatorText("Defaults");
-		if (Button("Reset all settings to defaults")) {
+		SeparatorText(T("Defaults"));
+		if (Button(Id("Reset all settings to defaults", "resetAll").c_str())) {
 			Config::ResetToDefaults();
-			profileStatus = "Settings reset";
+			profileStatus = T("Settings reset");
 		}
 
 		if (!profileStatus.empty()) {
@@ -500,6 +565,6 @@ namespace UI
 			TextColored(kGold, "%s", profileStatus.c_str());
 		}
 		Spacing();
-		TextDisabled("Profiles are saved in %s (with Mod Organizer 2: in the overwrite folder).", Profiles::Dir().make_preferred().string().c_str());
+		TextDisabled("%s", F("Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).", Profiles::Dir().make_preferred().string()).c_str());
 	}
 }

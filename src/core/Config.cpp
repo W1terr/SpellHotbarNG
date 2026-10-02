@@ -1,6 +1,22 @@
 #include "core/Config.h"
 
 #include "core/Bindings.h"
+#include "core/Lang.h"
+
+namespace
+{
+	// Profile names can have any letters, path::string() would throw for those missing in the system code page
+	std::filesystem::path FromUtf8(const std::string& a_str)
+	{
+		return std::filesystem::path(std::u8string(a_str.begin(), a_str.end()));
+	}
+
+	std::string ToUtf8(const std::filesystem::path& a_path)
+	{
+		const auto str = a_path.u8string();
+		return std::string(str.begin(), str.end());
+	}
+}
 
 namespace Config
 {
@@ -74,7 +90,7 @@ namespace Config
 			try {
 				return json::parse(file, nullptr, true, true);
 			} catch (const std::exception& e) {
-				logs::error("Failed to parse {}: {}", a_path.string(), e.what());
+				logs::error("Failed to parse {}: {}", ToUtf8(a_path), e.what());
 				return std::nullopt;
 			}
 		}
@@ -85,7 +101,7 @@ namespace Config
 			std::filesystem::create_directories(a_path.parent_path(), ec);
 			std::ofstream file(a_path, std::ios::trunc);
 			if (!file) {
-				logs::error("Failed to write {}", a_path.string());
+				logs::error("Failed to write {}", ToUtf8(a_path));
 				return false;
 			}
 			file << a_json.dump(2);
@@ -233,6 +249,7 @@ namespace Config
 		std::scoped_lock lock(Lock());
 		if (auto j = ReadJsonFile(SettingsPath())) {
 			FromJson(j->value("settings", json::object()), settings);
+			Lang::Set(j->value("language", "english"));  // outside "settings": profiles and resets keep the language
 			const int version = j->value("version", 1);
 			if (version < 3) {
 				settings.modifierEnabled.fill(false);
@@ -240,9 +257,10 @@ namespace Config
 			if (version < kFileVersion) {
 				MarkDirty();  // rewrite without the removed options
 			}
-			logs::info("Loaded settings from {}", SettingsPath().string());
+			logs::info("Loaded settings from {}", ToUtf8(SettingsPath()));
 		} else {
 			logs::info("No settings file yet, using defaults");
+			Lang::Set("english");
 		}
 	}
 
@@ -252,6 +270,7 @@ namespace Config
 		json j;
 		j["version"] = kFileVersion;
 		j["settings"] = ToJson(settings);
+		j["language"] = Lang::Current().id;
 		if (WriteJsonFile(SettingsPath(), j)) {
 			dirty = false;
 		}
@@ -298,11 +317,13 @@ namespace Profiles
 {
 	namespace
 	{
+		// Names are UTF-8 (typed in the menu); bytes >= 0x80 are parts of non-English letters
 		std::string SanitizeName(const std::string& a_name)
 		{
 			std::string out;
 			for (const char c : a_name) {
-				if (std::isalnum(static_cast<unsigned char>(c)) || c == ' ' || c == '-' || c == '_' || c == '.' || c == '(' || c == ')') {
+				const auto u = static_cast<unsigned char>(c);
+				if (u >= 0x80 || std::isalnum(u) || c == ' ' || c == '-' || c == '_' || c == '.' || c == '(' || c == ')') {
 					out.push_back(c);
 				}
 			}
@@ -327,7 +348,7 @@ namespace Profiles
 		}
 		for (const auto& file : std::filesystem::directory_iterator(Dir(), ec)) {
 			if (file.is_regular_file() && file.path().extension() == ".json") {
-				out.push_back({ file.path().stem().string(), file.path() });
+				out.push_back({ ToUtf8(file.path().stem()), file.path() });
 			}
 		}
 		std::ranges::sort(out, {}, &Entry::name);
@@ -347,7 +368,7 @@ namespace Profiles
 		if (a_includeBindings) {
 			j["bindings"] = Bindings::ToJson();
 		}
-		if (!Config::WriteJsonFile(Dir() / (name + ".json"), j)) {
+		if (!Config::WriteJsonFile(Dir() / FromUtf8(name + ".json"), j)) {
 			return false;
 		}
 		logs::info("Saved profile '{}' (bindings: {})", name, a_includeBindings);

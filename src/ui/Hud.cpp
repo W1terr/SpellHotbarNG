@@ -6,6 +6,7 @@
 #include "core/Input.h"
 #include "ui/ItemIcons.h"
 #include "core/Keys.h"
+#include "core/Lang.h"
 #include "ui/UI.h"
 
 namespace UI
@@ -429,9 +430,9 @@ namespace UI
 		// header line above the bar: page name / binding help
 		std::string header;
 		if (ctx->bindMenu) {
-			header = selection ? std::format("Press a slot key to bind {}", selection->GetName()) : "Select a spell or item, then press a slot key";
+			header = selection ? Lang::F("Press a slot key to bind {}", selection->GetName()) : Lang::T("Select a spell or item, then press a slot key");
 			if (page != Page::kMain) {
-				header += std::format("  [holding {}]", Keys::Name(settings.modifierKeys[static_cast<int>(page) - static_cast<int>(Page::kModifier1)]));
+				header += "  " + Lang::F("[holding {}]", Keys::Name(settings.modifierKeys[static_cast<int>(page) - static_cast<int>(Page::kModifier1)]));
 			}
 		} else if (settings.showPageName && page != Page::kMain) {
 			header = Keys::Name(settings.modifierKeys[static_cast<int>(page) - static_cast<int>(Page::kModifier1)]);

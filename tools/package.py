@@ -156,6 +156,9 @@ def main():
     copy(BUILD / "SpellHotbarNG.pdb", CORE / PLUGIN_DIR / "SpellHotbarNG.pdb")
     copy(ROOT / "LICENSE", CORE / DATA_DIR / "LICENSE.txt")
     copy(ROOT / "res" / "CREDITS.txt", CORE / DATA_DIR / "CREDITS.txt")
+    shutil.rmtree(CORE / DATA_DIR / "lang", ignore_errors=True)
+    for lang in sorted((ROOT / "res" / "lang").glob("*.json")):
+        copy(lang, CORE / DATA_DIR / "lang" / lang.name)
 
     # outputs of older versions that would otherwise end up in the zip (preset profiles, installer images)
     for stale in (CORE / DATA_DIR / "presets", STAGING / "20 Auto Profiles", CORE / "Interface"):

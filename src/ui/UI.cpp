@@ -4,6 +4,7 @@
 #include "ui/Framework.h"
 #include "ui/Icons.h"
 #include "core/Input.h"
+#include "core/Lang.h"
 
 namespace UI
 {
@@ -45,9 +46,10 @@ namespace UI
 		logs::info("SKSE Menu Framework {} found", SKSEMenuFramework::GetMenuFrameworkVersion());
 
 		SKSEMenuFramework::SetSection("Spell Hotbar NG");
-		SKSEMenuFramework::AddSectionItem("Bindings", RenderBindingsPage);
-		SKSEMenuFramework::AddSectionItem("Bar Layout", RenderBarPage);
-		SKSEMenuFramework::AddSectionItem("Profiles", RenderProfilesPage);
+		// page names are fixed once registered, a language change shows up after a restart
+		SKSEMenuFramework::AddSectionItem(Lang::T("Bindings"), RenderBindingsPage);
+		SKSEMenuFramework::AddSectionItem(Lang::T("Bar Layout"), RenderBarPage);
+		SKSEMenuFramework::AddSectionItem(Lang::T("Profiles"), RenderProfilesPage);
 
 		SKSEMenuFramework::AddHudElement(RenderHud);
 		SKSEMenuFramework::AddInputEvent(OnInput);
