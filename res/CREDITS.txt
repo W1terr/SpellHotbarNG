@@ -1,9 +1,5 @@
-Spell Hotbar NG
-===============
-
 Spell / item icons, spell lists and the bar frame textures come from
 Spell Hotbar 2 by pWn3d1337 - https://github.com/pWn3d1337/Skyrim_SpellHotbar2
-(MIT License, Copyright (c) 2024 pWn3d1337). Community icon packs by ArchAngelAries.
 
 The way the selected entry of the magic / favorites menu is read follows Spell Hotbar 2 and Wheeler.
 
@@ -12,5 +8,3 @@ Open Animation Replacer condition API by ersh1.
 
 The item pictures (the game's Inventory3DManager drawn over two backdrops) use a technique learned from
 Grid Inventory and Modex; the code is our own.
-
-Source code: https://github.com/Iur1M/SpellHotbarNG
