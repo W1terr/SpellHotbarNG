@@ -31,7 +31,7 @@ namespace Replacers
 
 		constexpr std::string_view kOutRoot = "Data/meshes/actors/character/OpenAnimationReplacer/SpellHotbarNG_Replacers"sv;
 		constexpr std::string_view kManifest = "manifest.txt"sv;
-		constexpr int              kGeneratorVersion = 2;  // bump when the output layout changes
+		constexpr int              kGeneratorVersion = 4;  // bump when the output changes (3 had interruptible locomotion)
 
 		// above Spell Hotbar NG's own submods (2140000000 + ...), below the animation patches (2141000000 + ...)
 		constexpr int kPriorityBase = 2140100000;

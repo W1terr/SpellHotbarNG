@@ -15,13 +15,18 @@ namespace ShoutBlend
 
 		constexpr const char* kBlenderName = "MT_ShoutLocomotionBlend";
 
-		// skeleton bone indices (meshes\actors\character\character assets\skeleton.hkx)
-		constexpr std::array<int, 16> kArmBones{ 27, 28, 29, 30, 31, 32,  // clavicles, upper arms, forearms
-			44, 45,                                                       // pauldrons
-			52, 53, 54, 55, 56, 57, 58, 59 };                             // forearm / upper arm twists
-		constexpr std::array<int, 3> kSpineBones{ 24, 25, 26 };
-		constexpr int                kMinBones = 60;
-		constexpr int                kMaxBones = 256;
+		// Skeleton bone indices (meshes\actors\character\character assets\skeleton.hkx): the character property
+		// "UpperBody" of defaultmale.hkx / defaultfemale.hkx, the bones the magic behavior takes from the casting clip while
+		// moving (MagicCast_UpperBody_BoneSwitchGen): spine, clavicles, arms, neck, head, twists, fingers. The rest (root,
+		// pelvis, legs, camera) stays with the walk / run.
+		constexpr auto kUpperBodyBones = std::to_array<int>({ 24, 25, 26, 27, 28, 29, 30, 31, 32,
+			35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+			52, 53, 54, 55, 56, 57, 58, 59, 60, 62, 63,
+			67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96 });
+		// spine, clavicles and arms: half / half in the vanilla blend
+		constexpr auto kHalfBones = std::to_array<int>({ 24, 25, 26, 27, 28, 29, 30, 31, 32 });
+		constexpr int  kMinBones = 60;
+		constexpr int  kMaxBones = 256;
 
 		struct RawArray
 		{
@@ -204,8 +209,7 @@ namespace ShoutBlend
 			std::vector<float> shout(weights[0].data, weights[0].data + weights[0].size);
 			std::vector<float> locomotion(weights[1].data, weights[1].data + weights[1].size);
 			// only the vanilla split (half / half), anything else is a behavior mod's own blend
-			const bool vanilla = std::ranges::all_of(kArmBones, [&](int a_bone) { return shout[a_bone] == 0.5f && locomotion[a_bone] == 0.5f; }) &&
-			                     std::ranges::all_of(kSpineBones, [&](int a_bone) { return shout[a_bone] == 0.5f && locomotion[a_bone] == 0.5f; });
+			const bool vanilla = std::ranges::all_of(kHalfBones, [&](int a_bone) { return shout[a_bone] == 0.5f && locomotion[a_bone] == 0.5f; });
 			if (!vanilla) {
 				if (!warned) {
 					warned = true;
@@ -215,13 +219,15 @@ namespace ShoutBlend
 			}
 			auto newShout = shout;
 			auto newLocomotion = locomotion;
-			for (const int bone : kArmBones) {
-				newShout[bone] = 1.0f;
-				newLocomotion[bone] = 0.0f;
-			}
-			for (const int bone : kSpineBones) {
-				newShout[bone] = 0.0f;
-				newLocomotion[bone] = 1.0f;
+			// Bones past the end of a weight array count as 1: the shout child's array is shorter (the fingers are past its
+			// end), so those only need the locomotion side set to 0
+			for (const int bone : kUpperBodyBones) {
+				if (bone < static_cast<int>(newShout.size())) {
+					newShout[bone] = 1.0f;
+				}
+				if (bone < static_cast<int>(newLocomotion.size())) {
+					newLocomotion[bone] = 0.0f;
+				}
 			}
 			if (!WriteSafe(weights[0].data, newShout.data(), weights[0].size) ||
 				!WriteSafe(weights[1].data, newLocomotion.data(), weights[1].size)) {
@@ -232,7 +238,7 @@ namespace ShoutBlend
 			patched.push_back({ weights[1].data, std::move(locomotion) });
 			if (!loggedPatch) {
 				loggedPatch = true;
-				logs::info("Moving casts: arms taken from the casting animation while the hotbar cast runs");
+				logs::info("Moving casts: upper body taken from the casting animation while the hotbar cast runs");
 			}
 		}
 	}

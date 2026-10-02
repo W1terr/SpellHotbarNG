@@ -1,6 +1,7 @@
 #include "casting/CastAnim.h"
 
 #include "core/Config.h"
+#include "casting/GraphWatch.h"
 #include "casting/Replacers.h"
 #include "casting/ShoutBlend.h"
 #include "casting/VanillaCast.h"
@@ -312,6 +313,7 @@ namespace CastAnim
 			if (!PlayerShouting()) {
 				const bool handled = Notify("ShoutStop"sv);
 				logs::debug("Casting animation ended (graph {} ShoutStop)", handled ? "took" : "ignored");
+				GraphWatch::Note(std::format("ShoutStop after the release ({})", handled ? "taken" : "ignored"));
 			}
 		}
 
@@ -493,6 +495,9 @@ namespace CastAnim
 			lingering = false;
 			sinceStop = kLongAgo;
 			logs::debug("Casting animation {} started", static_cast<int>(a_type));
+			const auto player = Player();
+			GraphWatch::Begin(std::format("ShoutStart, animation {} hand {} ({}, {} person)", static_cast<int>(a_type), static_cast<int>(a_side),
+				player && player->IsMoving() ? "moving" : "standing", FirstPerson() ? "1st" : "3rd"));
 			return StartResult::kStarted;
 		}
 		// refused: keep the condition of the clip that may still be playing
@@ -516,13 +521,17 @@ namespace CastAnim
 
 	void Restart()
 	{
-		NotifyShoutStart();
+		// refused while the graph is still in the shout state (the normal case)
+		if (NotifyShoutStart()) {
+			GraphWatch::Note("ShoutStart again: the graph had left the shout state");
+		}
 	}
 
 	void Release()
 	{
 		phase = 2;  // before the event: interruptible clips (1st person walk / run) switch to the release clip
 		Notify("MT_BreathExhaleShort"sv);
+		GraphWatch::Note("MT_BreathExhaleShort (release)");
 		Linger(CurrentReleaseDuration(), true);
 		readyAt = std::max(0.0f, ClipReleaseDuration(static_cast<Type>(current.load()), FirstPerson()) - kReadyLead);
 		logs::debug("Casting animation {} released", current.load());
@@ -533,6 +542,7 @@ namespace CastAnim
 		// "ShoutStop" goes out right away here, so there's no extra settle time at the end
 		shoutActive = false;
 		Notify("ShoutStop"sv);
+		GraphWatch::Note("ShoutStop (cast stopped)");
 		Linger(CurrentReleaseDuration(), false);
 	}
 
@@ -541,7 +551,14 @@ namespace CastAnim
 		sinceStop = std::min(sinceStop + a_delta, kLongAgo);
 		UpdateHandArt(a_delta);
 		RestoreSyncIdleLocomotion();  // the graph picked the shout's start state during the last update
-		ShoutBlend::Update(shoutActive.load());  // 3rd person moving casts: arms from the casting clip
+		ShoutBlend::Update(shoutActive.load());  // moving casts: upper body from the casting clip
+		GraphWatch::Update(a_delta, current.load() != 0);
+		// Something else took the graph out of the shout state while we charge / channel: the arms would drop into the
+		// normal walk / run for the rest of the cast. Put the cast animation back.
+		if (GraphWatch::TakeLeftShout() && shoutActive.load() && phase.load() == 1 && !lingering) {
+			const bool back = NotifyShoutStart();
+			GraphWatch::Note(back ? "the graph left the shout state mid-cast: ShoutStart again" : "the graph left the shout state mid-cast, ShoutStart refused");
+		}
 		if (!lingering) {
 			return;
 		}
