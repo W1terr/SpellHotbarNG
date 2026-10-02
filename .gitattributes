@@ -1,0 +1,3 @@
+# normalize line endings in the repository, Windows scripts keep CRLF
+* text=auto
+*.bat text eol=crlf

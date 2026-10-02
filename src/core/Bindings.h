@@ -1,0 +1,48 @@
+#pragma once
+
+#include "core/Config.h"
+
+enum class Hand : std::uint8_t
+{
+	kAuto = 0,
+	kRight,
+	kLeft,
+	kBoth
+};
+
+struct SlotBinding
+{
+	RE::FormID form{ 0 };
+	Hand       hand{ Hand::kAuto };
+
+	[[nodiscard]] bool Empty() const { return form == 0; }
+};
+
+// Oblivion style: the spell / scroll picked for the cast key and the potion picked for the potion key. These pseudo
+// slots work with every function taking a slot (the page is ignored).
+inline constexpr int kReadySpellSlot = -2;
+inline constexpr int kReadyPotionSlot = -3;
+
+inline bool IsReadySlot(int a_slot) { return a_slot == kReadySpellSlot || a_slot == kReadyPotionSlot; }
+
+// Slot bindings belong to the character, so they are stored in the SKSE co-save.
+// Profiles can optionally carry them as plugin-relative form ids.
+namespace Bindings
+{
+	SlotBinding&       Get(Page a_page, int a_slot);
+	RE::TESForm*       GetForm(Page a_page, int a_slot);
+	void               Set(Page a_page, int a_slot, RE::FormID a_form, Hand a_hand = Hand::kAuto);
+	void               Clear(Page a_page, int a_slot);
+	void               ClearAll();
+
+	// Bind from a menu: binding the same form again clears the slot. Returns true if bound.
+	bool Toggle(Page a_page, int a_slot, RE::TESForm* a_form);
+
+	// Forms that can sit in a slot
+	bool IsBindable(const RE::TESForm* a_form);
+
+	json ToJson();
+	void FromJson(const json& a_json);
+
+	void RegisterSerialization();
+}

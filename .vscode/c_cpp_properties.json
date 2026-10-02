@@ -1,0 +1,11 @@
+{
+	"configurations": [
+		{
+			"name": "Win32",
+			"compileCommands": "${workspaceFolder}/compile_commands.json",
+			"cppStandard": "c++23",
+			"intelliSenseMode": "windows-msvc-x64"
+		}
+	],
+	"version": 4
+}

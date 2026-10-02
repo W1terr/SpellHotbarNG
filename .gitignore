@@ -1,0 +1,23 @@
+# editor / build tool folders
+.cache/
+.idea/
+.vs/
+.xmake/
+vs*/
+
+# build output
+build/
+dist/
+compile_commands.json
+*.zip
+
+# local machine settings (see build.bat and tools/paths.py)
+build.local.bat
+tools/paths_local.json
+
+# sources of generated assets (Spell Hotbar 2 clone for the icons)
+external/
+
+# python
+__pycache__/
+*.pyc

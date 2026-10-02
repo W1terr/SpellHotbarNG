@@ -1,0 +1,25 @@
+#pragma once
+
+// Icons for weapons, armor, ammo and torches that have no icon in the atlases: a picture of the item's own inventory
+// model. The game's Inventory3DManager (the 3D item view of the inventory) draws the model, it is read back from the
+// render target (once over black, once over white: the difference is the transparency) and saved as a DDS file in
+// Data\SKSE\Plugins\SpellHotbarNG\item_icons, one per model, so every model is only photographed once.
+//
+// The capture runs in the UI render pass of a small invisible menu (kCustomRendering), the place the game itself draws
+// the inventory's 3D item. While the inventory (or another menu with a 3D item view) is open, only the item it shows is
+// photographed; otherwise the model is loaded into the 3D view, captured and unloaded again.
+namespace ItemIcons
+{
+	// Registers the capture menu. Call on kDataLoaded.
+	void Register();
+
+	// Forms that get a model icon
+	bool Supports(const RE::TESForm* a_form);
+
+	// Texture (ImTextureID) of the form's model icon. nullptr while it's being made (asking for it queues the capture)
+	// or if the model can't be photographed.
+	void* Get(RE::TESForm* a_form);
+
+	// Opens / closes the capture menu while captures are waiting. Call every frame.
+	void Update();
+}

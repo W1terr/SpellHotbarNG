@@ -1,0 +1,322 @@
+#include "core/Input.h"
+
+#include "casting/Actions.h"
+#include "core/Bindings.h"
+#include "core/Keys.h"
+#include "ui/UI.h"
+
+namespace Input
+{
+	namespace
+	{
+		enum class Mode
+		{
+			kNone,
+			kGameplay,
+			kBind
+		};
+
+		// a slot key that went down while we handled it, so its release is swallowed as well
+		struct SlotState
+		{
+			bool down{ false };
+			Mode mode{ Mode::kNone };
+		};
+
+		// slot keys, then the Oblivion style cast key and potion key
+		std::array<SlotState, kMaxSlots + 2> slotStates{};
+		std::chrono::steady_clock::time_point lastSlotKey{};
+		std::array<bool, kModifierCount> modifierDown{};
+		std::uint32_t*                   captureTarget{ nullptr };
+
+		// Keyboard modifiers can miss their release (alt-tab), so double check them with the OS
+		bool KeyboardKeyDown(std::uint32_t a_key)
+		{
+			const auto scan = a_key >= 0x80 ? (0xE000 | (a_key & 0x7F)) : a_key;
+			const auto vk = ::MapVirtualKeyW(scan, MAPVK_VSC_TO_VK_EX);
+			return vk != 0 && (::GetAsyncKeyState(static_cast<int>(vk)) & 0x8000) != 0;
+		}
+
+		bool TextEntryActive()
+		{
+			const auto controlMap = RE::ControlMap::GetSingleton();
+			return controlMap && controlMap->GetRuntimeData().textEntryCount > 0;
+		}
+
+		bool GameplayActive()
+		{
+			const auto ui = RE::UI::GetSingleton();
+			const auto player = RE::PlayerCharacter::GetSingleton();
+			if (!ui || !player || player->IsDead() || ui->GameIsPaused() || TextEntryActive()) {
+				return false;
+			}
+			if (ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME) || ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME) ||
+				ui->IsMenuOpen(RE::MainMenu::MENU_NAME) || UI::IsBlockingWindowOpen()) {
+				return false;
+			}
+			const auto controlMap = RE::ControlMap::GetSingleton();
+			return !controlMap || controlMap->IsFightingControlsEnabled();
+		}
+
+		bool SneakAllows()
+		{
+			const auto player = RE::PlayerCharacter::GetSingleton();
+			return !Config::Get().onlyWhileSneaking || (player && player->AsActorState()->IsSneaking());
+		}
+
+		Mode CurrentMode()
+		{
+			if (InBindMenu()) {
+				return Mode::kBind;
+			}
+			return GameplayActive() && SneakAllows() ? Mode::kGameplay : Mode::kNone;
+		}
+
+		SlotState& StateOf(int a_slot)
+		{
+			return a_slot == kReadySpellSlot ? slotStates[kMaxSlots] : a_slot == kReadyPotionSlot ? slotStates[kMaxSlots + 1] : slotStates[a_slot];
+		}
+
+		// Slot of a key; the Oblivion style cast / potion keys give their pseudo slots
+		int FindSlot(std::uint32_t a_key)
+		{
+			const auto& settings = Config::Get();
+			if (settings.keyMode == KeyMode::kOblivion) {
+				if (settings.castKey == a_key) {
+					return kReadySpellSlot;
+				}
+				if (settings.potionKey == a_key) {
+					return kReadyPotionSlot;
+				}
+			}
+			for (int i = 0; i < settings.slotCount; ++i) {
+				if (settings.slotKeys[i] == a_key) {
+					return i;
+				}
+			}
+			return -1;
+		}
+
+		void Bind(Page a_page, int a_slot)
+		{
+			const auto form = MenuSelection();
+			if (!form) {
+				logs::info("Bind slot {} ({}): no selected item found in the open menu", a_slot + 1, Config::PageName(a_page));
+				RE::PlaySound("MAGFailSD");
+				return;
+			}
+			logs::info("Bind slot {} ({}): {} [{:08X}]", a_slot + 1, Config::PageName(a_page), form->GetName(), form->GetFormID());
+			if (!Bindings::IsBindable(form)) {
+				RE::PlaySound("MAGFailSD");
+				return;
+			}
+			RE::PlaySound(Bindings::Toggle(a_page, a_slot, form) ? "UIFavorite" : "UIUnFavorite");
+		}
+
+		// A slot key press uses (or in a menu binds) the slot right away, on the page of the held modifier
+		void OnDown(int a_slot, std::uint32_t a_key, Mode a_mode)
+		{
+			StateOf(a_slot) = { true, a_mode };
+			if (!IsReadySlot(a_slot)) {
+				lastSlotKey = std::chrono::steady_clock::now();
+			}
+			const auto page = CurrentPage();
+			if (a_mode == Mode::kBind) {
+				Bind(page, a_slot);
+			} else {
+				Actions::Use(page, a_slot, true, a_key);
+			}
+		}
+	}
+
+	bool OnInputEvent(RE::InputEvent* a_event)
+	{
+		if (!a_event || a_event->GetEventType() != RE::INPUT_EVENT_TYPE::kButton) {
+			return false;
+		}
+		const auto button = a_event->AsButtonEvent();
+		const auto key = button ? Keys::FromEvent(button) : Keys::kNone;
+		if (key == Keys::kNone) {
+			return false;
+		}
+
+		std::scoped_lock lock(Config::Lock());
+		auto&            settings = Config::Get();
+
+		if (captureTarget) {
+			if (button->IsDown()) {
+				if (key != Keys::kEscape) {
+					*captureTarget = (key == Keys::kDelete || key == Keys::kBackspace) ? Keys::kNone : key;
+					Config::MarkDirty();
+				}
+				captureTarget = nullptr;
+			}
+			return true;
+		}
+
+		const bool pressed = button->IsPressed();
+
+		for (int i = 0; i < kModifierCount; ++i) {
+			if (settings.modifierEnabled[i] && settings.modifierKeys[i] == key) {
+				modifierDown[i] = pressed;
+			}
+		}
+
+		const auto slot = FindSlot(key);
+		if (slot < 0) {
+			return false;
+		}
+
+		// the cast / potion key only exist for the hotbar, the game never sees them
+		const bool block = IsReadySlot(slot) || settings.blockGameInput;
+
+		if (!pressed) {
+			Actions::OnKeyUp(key);
+			auto&      state = StateOf(slot);
+			const bool wasOurs = state.down;
+			state.down = false;
+			return wasOurs && (state.mode == Mode::kBind || block);
+		}
+
+		const auto mode = CurrentMode();
+		if (mode == Mode::kNone || (mode == Mode::kBind && IsReadySlot(slot))) {
+			return false;
+		}
+
+		if (button->IsDown()) {
+			OnDown(slot, key, mode);
+		}
+		return mode == Mode::kBind || block;
+	}
+
+	void Update()
+	{
+		std::scoped_lock lock(Config::Lock());
+		const auto&      settings = Config::Get();
+		for (int i = 0; i < kModifierCount; ++i) {
+			const auto key = settings.modifierKeys[i];
+			if (modifierDown[i] && key != Keys::kNone && key < Keys::kMouseOffset && !KeyboardKeyDown(key)) {
+				modifierDown[i] = false;
+			}
+		}
+	}
+
+	void Reset()
+	{
+		std::scoped_lock lock(Config::Lock());
+		slotStates.fill({});
+		modifierDown.fill(false);
+	}
+
+	void BeginCapture(std::uint32_t* a_target)
+	{
+		std::scoped_lock lock(Config::Lock());
+		captureTarget = a_target;
+	}
+
+	void CancelCapture()
+	{
+		std::scoped_lock lock(Config::Lock());
+		captureTarget = nullptr;
+	}
+
+	const std::uint32_t* CaptureTarget()
+	{
+		return captureTarget;
+	}
+
+	Page CurrentPage()
+	{
+		const auto& settings = Config::Get();
+		for (int i = 0; i < kModifierCount; ++i) {
+			if (settings.modifierEnabled[i] && settings.modifierKeys[i] != Keys::kNone && modifierDown[i]) {
+				return static_cast<Page>(static_cast<int>(Page::kModifier1) + i);
+			}
+		}
+		return Page::kMain;
+	}
+
+	float SinceSlotKey()
+	{
+		for (int i = 0; i < kMaxSlots; ++i) {
+			if (slotStates[i].down) {
+				return 0.0f;
+			}
+		}
+		if (lastSlotKey == std::chrono::steady_clock::time_point{}) {
+			return std::numeric_limits<float>::max();
+		}
+		return std::chrono::duration<float>(std::chrono::steady_clock::now() - lastSlotKey).count();
+	}
+
+	bool InBindMenu()
+	{
+		const auto ui = RE::UI::GetSingleton();
+		if (!ui || TextEntryActive() || UI::IsBlockingWindowOpen()) {
+			return false;
+		}
+		return ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) ||
+		       ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME);
+	}
+
+	RE::TESForm* MenuSelection()
+	{
+		const auto ui = RE::UI::GetSingleton();
+		if (!ui) {
+			return nullptr;
+		}
+
+		if (const auto menu = ui->GetMenu<RE::MagicMenu>(); menu && menu->uiMovie) {
+			// SkyUI (SKSE extended data) puts the form id on the entry, approach from SpellHotbar2 / Wheeler
+			RE::GFxValue selection;
+			menu->uiMovie->GetVariable(&selection, "_root.Menu_mc.inventoryLists.itemList.selectedEntry.formId");
+			if (selection.IsNumber()) {
+				return RE::TESForm::LookupByID(static_cast<RE::FormID>(selection.GetNumber()));
+			}
+			// vanilla menu: the game's own list, indexed by the selected entry
+			const auto itemList = menu->GetRuntimeData().itemList;
+			const auto item = itemList ? itemList->GetSelectedItem() : nullptr;
+			return item ? item->data.baseForm : nullptr;
+		}
+
+		if (const auto menu = ui->GetMenu<RE::InventoryMenu>()) {
+			const auto itemList = menu->GetRuntimeData().itemList;
+			const auto item = itemList ? itemList->GetSelectedItem() : nullptr;
+			if (item && item->data.objDesc) {
+				return item->data.objDesc->GetObject();
+			}
+			return nullptr;
+		}
+
+		if (const auto menu = ui->GetMenu<RE::FavoritesMenu>()) {
+			auto& root = menu->GetRuntimeData().root;
+			if (!root.IsDisplayObject() || !root.HasMember("itemList")) {
+				return nullptr;
+			}
+			RE::GFxValue itemList;
+			root.GetMember("itemList", &itemList);
+			if (!itemList.IsDisplayObject() || !itemList.HasMember("selectedEntry")) {
+				return nullptr;
+			}
+			RE::GFxValue entry;
+			itemList.GetMember("selectedEntry", &entry);
+			if (entry.IsObject() && entry.HasMember("formId")) {
+				RE::GFxValue formId;
+				entry.GetMember("formId", &formId);
+				if (formId.IsNumber()) {
+					return RE::TESForm::LookupByID(static_cast<RE::FormID>(formId.GetNumber()));
+				}
+			}
+			// vanilla menu: entries are in the order of the game's favorites array
+			RE::GFxValue index;
+			if (itemList.GetMember("selectedIndex", &index) && index.IsNumber()) {
+				const auto  idx = static_cast<std::int32_t>(index.GetNumber());
+				const auto& favorites = menu->GetRuntimeData().favorites;
+				if (idx >= 0 && static_cast<std::uint32_t>(idx) < favorites.size()) {
+					return favorites[idx].item;
+				}
+			}
+		}
+		return nullptr;
+	}
+}
