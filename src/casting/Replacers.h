@@ -2,10 +2,10 @@
 
 #include "casting/CastAnim.h"
 
-// Animation patches for magic casting animation mods in Dynamic Animation Replacer folders (also loaded by OAR), e.g.
-// "Smooth Magic Casting Animation". Hotbar casts play shout clips, so a mod that replaces mrh_chargeloop.hkx & co.
-// never shows on them. A patch is only a list of the mod's DAR folders ("darFolders" in an animations\*.json timing
-// file, see tools/patches.py). At game start Generate() writes OAR submods that play those folders' clips in place of
+// Animation patches for magic casting animation mods, in Dynamic Animation Replacer folders (also loaded by OAR, e.g.
+// "Smooth Magic Casting Animation") or OAR submods ("Goetia Animations - Magic Spell Casting"). Hotbar casts play shout
+// clips, so a mod that replaces mrh_chargeloop.hkx & co. never shows on them. A patch is only a list of the mod's
+// folders ("darFolders" / "oarFolders" in an animations\*.json timing file, see tools/patches.py). At game start Generate() writes OAR submods that play those folders' clips in place of
 // the shout clips (copies of the user's installed files, nothing of those mods is shipped):
 //   Data\meshes\actors\character\OpenAnimationReplacer\SpellHotbarNG_Replacers
 // The folders' conditions are evaluated by the DLL when a cast starts (spell school instead of the equipped spell type,

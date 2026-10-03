@@ -1,5 +1,6 @@
 #include "core/Bindings.h"
 #include "core/Config.h"
+#include "core/Hotkeys.h"
 #include "ui/Framework.h"
 #include "ui/Icons.h"
 #include "core/Input.h"
@@ -15,6 +16,7 @@ namespace UI
 
 		constexpr const char* kAnchorNames[] = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" };
 		constexpr const char* kVisibilityNames[] = { "Always", "In combat", "Weapons / magic drawn", "In combat or drawn", "Never (only in menus)", "While sneaking" };
+		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
 		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };
 
 		// Translated texts of a fixed list (combo items)
@@ -62,11 +64,19 @@ namespace UI
 			}
 		}
 
-		// Button showing a key; clicking it waits for the next key press (Input stores it and marks the settings dirty)
+		// What to press for a key of the settings (also where Hotkey Atlas moved it), "-" for none
+		std::string KeyLabel(const std::uint32_t& a_key)
+		{
+			const auto label = Hotkeys::Label(Config::Get(), a_key);
+			return label.empty() ? "-" : label;
+		}
+
+		// Button showing a key of the settings; clicking it waits for the next key press (Input stores it
+		// and marks the settings dirty)
 		void KeyButton(const char* a_id, std::uint32_t* a_key)
 		{
 			const bool capturing = Input::CaptureTarget() == a_key;
-			const auto label = capturing ? std::format("{}###{}", T("Press a key..."), a_id) : std::format("{}###{}", Keys::Name(*a_key), a_id);
+			const auto label = std::format("{}###{}", capturing ? T("Press a key...") : KeyLabel(*a_key), a_id);
 			if (Button(label.c_str(), ImVec2{ 130.0f, 0.0f })) {
 				if (capturing) {
 					Input::CancelCapture();
@@ -75,13 +85,18 @@ namespace UI
 				}
 			}
 			if (IsItemHovered()) {
-				SetTooltip("%s", T("Click, then press any key, mouse button or controller button.\nEsc: cancel    Delete: remove the key"));
+				std::string tip = T("Click, then press any key, mouse button or controller button.\nEsc: cancel    Delete: remove the key");
+				if (Hotkeys::MovedInHotkeyAtlas(Config::Get(), *a_key)) {
+					tip = std::format("{}\n\n{}", tip, T("Changed in Hotkey Atlas. Picking a key here replaces that change."));
+				}
+				SetTooltip("%s", tip.c_str());
 			}
 		}
 
 		void ColorOption(const char* a_label, RGBA& a_color, const char* a_help = nullptr)
 		{
-			Changed(ColorEdit4(Id(a_label, a_label).c_str(), a_color.data(), ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf));
+			Changed(ColorEdit4(Id(a_label, a_label).c_str(), a_color.data(),
+				ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf));
 			if (a_help) {
 				Help(a_help);
 			}
@@ -361,16 +376,27 @@ namespace UI
 			SeparatorText(T("Extra bars"));
 			TextWrapped("%s", T("Hold a key to switch to another set of spells, like Shift + 1 instead of 1. "
 								"Each extra bar you turn on gets its own tab."));
-			const float holdColumn = GetCursorPosX() + GetFrameHeight() + GetStyle()->ItemInnerSpacing.x +
+			const auto  modeNames = Translated(kExtraBarModeNames);
+			const float modeColumn = GetCursorPosX() + GetFrameHeight() + GetStyle()->ItemInnerSpacing.x +
 			                         TextWidth({ F("Extra bar {}", kModifierCount) }) + GetStyle()->ItemSpacing.x * 2.0f;
+			const float modeWidth = TextWidth({ modeNames[0], modeNames[1] }) + GetFrameHeight() + GetStyle()->FramePadding.x * 2.0f;
 			for (int i = 0; i < kModifierCount; ++i) {
 				PushID(i);
 				Changed(Checkbox(std::format("{}###enabled", F("Extra bar {}", i + 1)).c_str(), &s.modifierEnabled[i]));
-				SameLine(holdColumn);
-				AlignTextToFramePadding();
-				TextDisabled("%s", T("hold"));
+				SameLine(modeColumn);
+				int toggle = s.modifierToggle[i] ? 1 : 0;
+				SetNextItemWidth(modeWidth);
+				if (Combo("##mode", &toggle, modeNames.data(), static_cast<int>(modeNames.size()))) {
+					s.modifierToggle[i] = toggle == 1;
+					Changed(true);
+				}
 				SameLine();
 				KeyButton("mod", &s.modifierKeys[i]);
+				if (i == 0) {
+					Help("hold: the extra bar is used while you hold its key.\n"
+						 "press: one press switches to the extra bar, the next press goes back to the main bar.\n"
+						 "Another extra bar's key switches straight to that bar.");
+				}
 				PopID();
 			}
 
@@ -382,10 +408,14 @@ namespace UI
 			Help("On: aimed spells fly to what's under the crosshair, and in third person your character turns\n"
 				 "to face where the camera looks while casting.\n"
 				 "Off: they fly where your character faces, or at the enemy you're fighting.");
+			Changed(Checkbox(Id("Each shout has its own cooldown", "individualShoutCooldowns").c_str(), &s.individualShoutCooldowns));
+			Help("On: a shout only puts itself on cooldown, so you can use your other shouts right away.\n"
+				 "Each shout slot shows its own cooldown, and it carries over when you save and load.\n"
+				 "Off: one cooldown for all shouts, like the base game.");
 			Changed(Checkbox(Id("Slot keys only use the hotbar", "blockGameInput").c_str(), &s.blockGameInput));
 			Help("On: pressing a slot key only uses that slot.\n"
 				 "Off: the key also does what Skyrim normally does with it (for example 1 - 8 also use your favorites).\n"
-				 "The keys you hold for extra bars always keep working in the game.");
+				 "Extra bar keys always keep working in the game.");
 		}
 
 		constexpr int kHotkeysTab = -1;  // bindingsPage value of the Hotkeys tab
@@ -395,7 +425,9 @@ namespace UI
 			if (a_page == Page::kMain) {
 				return T("Main bar");
 			}
-			return F("Hold {}", Keys::Name(a_settings.modifierKeys[static_cast<int>(a_page) - static_cast<int>(Page::kModifier1)]));
+			const int bar = static_cast<int>(a_page) - static_cast<int>(Page::kModifier1);
+			const auto key = KeyLabel(a_settings.modifierKeys[bar]);
+			return a_settings.modifierToggle[bar] ? F("Press {}", key) : F("Hold {}", key);
 		}
 	}
 
@@ -462,7 +494,7 @@ namespace UI
 				Text("%d", slot + 1);
 				TableNextColumn();
 				AlignTextToFramePadding();
-				Text("%s", Keys::Name(s.slotKeys[slot]).c_str());
+				Text("%s", KeyLabel(s.slotKeys[slot]).c_str());
 
 				TableNextColumn();
 				IconImage(form, iconSize);

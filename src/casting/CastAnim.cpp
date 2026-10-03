@@ -317,9 +317,9 @@ namespace CastAnim
 			}
 		}
 
-		// Length of our own (vanilla) release clip of a cast type (measured with tools/hkx_duration.py). Concentration
-		// casts end with a short blend instead.
-		float VanillaReleaseDuration(Type a_type, bool a_firstPerson)
+		// Length of our own (vanilla) release clip of a cast type (measured with tools/hkx_duration.py, the same in
+		// 1st and 3rd person). Concentration casts end with a short blend instead.
+		float VanillaReleaseDuration(Type a_type)
 		{
 			// mlh_ (left hand) clips have the same lengths as the mrh_ ones
 			switch (a_type) {
@@ -328,8 +328,9 @@ namespace CastAnim
 			case Type::kSelf:
 				return 1.0f;    // mrh_selfrelease
 			case Type::kDualAimed:
-				return a_firstPerson ? 1.533f : 0.867f;  // ritualspell_aimrelease
+				return 0.967f;  // dmagaimrelease
 			case Type::kDualSelf:
+				return 0.8f;    // dmagselfrelease
 			case Type::kRitual:
 				return 1.0f;    // ritualspell_release
 			case Type::kAimedConc:
@@ -356,7 +357,7 @@ namespace CastAnim
 					return *duration;
 				}
 			}
-			return VanillaReleaseDuration(a_type, a_firstPerson);
+			return VanillaReleaseDuration(a_type);
 		}
 
 		// Length of the release clip of a cast for the current camera: an animation patch's timing file, or the clip's

@@ -2,6 +2,7 @@
 #include "core/Bindings.h"
 #include "casting/CastAnim.h"
 #include "casting/Replacers.h"
+#include "casting/SpellCharges.h"
 #include "core/Config.h"
 #include "ui/Icons.h"
 #include "core/Input.h"
@@ -41,6 +42,7 @@ namespace
 				Icons::Load();
 				Config::Load();
 				CastAnim::LoadTimings();
+				SpellCharges::Load();
 			}
 			ItemIcons::Register();
 			if (!UI::Register()) {

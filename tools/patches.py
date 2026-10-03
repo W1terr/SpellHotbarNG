@@ -7,8 +7,8 @@ Spell Hotbar 2. A patch ships no animations: it only adds an OAR "user.json" nex
 condition with a priority above Spell Hotbar NG's own animations, plus a timing file with the lengths of the
 mod's release clips so the bar waits for them (Data\\SKSE\\Plugins\\SpellHotbarNG\\animations\\*.json).
 
-Mods that replace the normal magic casting clips in Dynamic Animation Replacer folders ("dar_folders"): their
-animations can't be shipped, so the patch is only a file listing the mod's folders. At game start the DLL copies those
+Mods that replace the normal magic casting clips in Dynamic Animation Replacer folders ("dar_folders") or OAR submods
+("oar_folders"): their animations can't be shipped, so the patch is only a file listing the mod's folders. At game start the DLL copies those
 folders' clips into OAR submods for the shout clips and reads the clip lengths itself (src/casting/Replacers.cpp).
 """
 
@@ -58,7 +58,66 @@ SMOOTH_MAGIC_CASTING = {
     "dar_folders": [996, 1516, 1616, 1716, 1816, 1826, 1830, 1831],
 }
 
-PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING]
+# Goetia Animations - Magic Spell Casting (Nexus 70204, version 1.5b), an OAR mod. "Main" (no conditions) has every
+# casting clip plus magcast_*; the other submods only change sprinting / idles with weapon + spell. Third person only.
+# Its aimed wind-up is the 4.3 s m?h_precharge (the magic behavior plays it before m?h_chargeloop, which the mod leaves
+# vanilla for the right hand), so that is the charge clip for both hands.
+GOETIA_MAGIC_CASTING = {
+    "name": "Goetia Animations - Magic Spell Casting",
+    "folder": "Goetia Animations - Magic Spell Casting",
+    "description": "Use the animations of \"Goetia Animations - Magic Spell Casting\" for Spell Hotbar NG casts. "
+                   "Needs that mod installed; contains no animations itself. At game start Spell Hotbar NG copies its "
+                   "animations for the hotbar (in MO2 they end up in the overwrite folder).",
+    "oar_folders": ["meshes/actors/character/animations/OpenAnimationReplacer/Magic Spell Casting/Main"],
+    "clip_substitutes": {"mrh_chargeloop.hkx": "mrh_precharge.hkx", "mlh_chargeloop.hkx": "mlh_precharge.hkx"},
+}
+
+PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING]
+
+# Compatibility patches: a file in Data\SKSE\Plugins\SpellHotbarNG\compat read by the DLL (src/casting/SpellCharges.h).
+# Ordinator - Perks of Skyrim (Nexus 1137), Alteration perk "Vancian Magic": ORD_NewVancianMagicCast_Script (on effect
+# ORD_Alt_NewVancianMagic_Effect_Ab) lowers ORD_Alt_NewVancianMagic_Global_Count in OnSpellCast for spells equipped in a
+# hand, shows _Message_AlmostDepleted at 10 and _Message_Depleted + InterruptCast at 0; the "Dungeon Master" blood
+# magic variant (ORD_VancianBloodMagic_Script on _Effect_Ab_Blood) also lowers it and below 0 costs
+# -count * _Global_DungeonMaster_BloodMagicMult health. Hotbar casts equip nothing, so the scripts never counted them.
+ORDINATOR = "Ordinator - Perks of Skyrim.esp"
+ORDINATOR_VANCIAN_MAGIC = {
+    "name": "Ordinator - Vancian Magic",
+    "folder": "Ordinator - Vancian Magic",
+    "plugin": ORDINATOR,
+    "description": "For \"Ordinator - Perks of Skyrim\": with the Vancian Magic perk, spells cast from the hotbar use up "
+                   "spell charges like normal casts (without this they were free). Needs Ordinator installed.",
+    "compat": {
+        "name": "Ordinator - Vancian Magic",
+        "spellCharges": [
+            {
+                "plugin": ORDINATOR,
+                "activeEffect": "0x167A0C",
+                "counter": "0x167A0E",
+                "messages": [
+                    {"at": 10, "message": "0x167A15"},
+                    {"at": 0, "message": "0x167A16", "interruptCast": True},
+                ],
+            },
+            {
+                "plugin": ORDINATOR,
+                "activeEffect": "0x167A27",
+                "counter": "0x167A0E",
+                "healthDamagePerMissingCharge": "0x167A22",
+            },
+        ],
+    },
+}
+
+COMPAT_PATCHES = [ORDINATOR_VANCIAN_MAGIC]
+
+
+def build_compat_patch(patch: dict, out_dir: Path) -> int:
+    """Writes a compatibility patch's file into out_dir (a mod root). Returns the number of files."""
+    dest = out_dir / "SKSE/Plugins/SpellHotbarNG/compat" / f"{patch['folder']}.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(patch["compat"], indent=4), encoding="utf-8")
+    return 1
 
 
 def build_patch(patch: dict, out_dir: Path) -> int:
@@ -67,6 +126,10 @@ def build_patch(patch: dict, out_dir: Path) -> int:
     timings.parent.mkdir(parents=True, exist_ok=True)
     if "dar_folders" in patch:
         timings.write_text(json.dumps({"name": patch["name"], "darFolders": patch["dar_folders"]}, indent=4), encoding="utf-8")
+        return 1
+    if "oar_folders" in patch:
+        timings.write_text(json.dumps({"name": patch["name"], "oarFolders": patch["oar_folders"],
+                                       "clipSubstitutes": patch.get("clip_substitutes", {})}, indent=4), encoding="utf-8")
         return 1
 
     count = 0

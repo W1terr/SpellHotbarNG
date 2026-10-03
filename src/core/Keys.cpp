@@ -150,15 +150,21 @@ namespace Keys
 		case RE::INPUT_DEVICE::kMouse:
 			return kMouseOffset + id;
 		case RE::INPUT_DEVICE::kGamepad:
-			for (std::uint32_t i = 0; i < kGamepadMasks.size(); ++i) {
-				if (kGamepadMasks[i] == id) {
-					return kGamepadOffset + i;
-				}
-			}
-			return kNone;
+			return FromGamepadMask(id);
 		default:
 			return kNone;
 		}
+	}
+
+	std::uint32_t FromGamepadMask(std::uint32_t a_mask)
+	{
+		const auto it = std::ranges::find(kGamepadMasks, a_mask);
+		return it != kGamepadMasks.end() ? kGamepadOffset + static_cast<std::uint32_t>(it - kGamepadMasks.begin()) : kNone;
+	}
+
+	std::uint32_t GamepadMask(std::uint32_t a_key)
+	{
+		return a_key >= kGamepadOffset && a_key < kGamepadOffset + kGamepadMasks.size() ? kGamepadMasks[a_key - kGamepadOffset] : 0;
 	}
 
 	std::string Name(std::uint32_t a_key)

@@ -3,6 +3,7 @@
 #include "casting/Actions.h"
 #include "core/Bindings.h"
 #include "core/Keys.h"
+#include "core/Util.h"
 #include "ui/UI.h"
 
 namespace Input
@@ -27,6 +28,7 @@ namespace Input
 		std::array<SlotState, kMaxSlots + 2> slotStates{};
 		std::chrono::steady_clock::time_point lastSlotKey{};
 		std::array<bool, kModifierCount> modifierDown{};
+		int                              switchedBar{ -1 };  // extra bar picked with a press-mode key, -1 = main bar
 		std::uint32_t*                   captureTarget{ nullptr };
 
 		// Keyboard modifiers can miss their release (alt-tab), so double check them with the OS
@@ -69,7 +71,30 @@ namespace Input
 			if (InBindMenu()) {
 				return Mode::kBind;
 			}
-			return GameplayActive() && SneakAllows() ? Mode::kGameplay : Mode::kNone;
+			return GameplayActive() && SneakAllows() && !Util::InBeastForm() ? Mode::kGameplay : Mode::kNone;
+		}
+
+		// Extra bar whose key is held (hold mode); they win over a bar picked with a press
+		std::optional<int> HeldBar()
+		{
+			const auto& settings = Config::Get();
+			for (int i = 0; i < kModifierCount; ++i) {
+				if (settings.modifierEnabled[i] && !settings.modifierToggle[i] && settings.modifierKeys[i] != Keys::kNone && modifierDown[i]) {
+					return i;
+				}
+			}
+			return std::nullopt;
+		}
+
+		// Extra bar picked with a press-mode key, while that bar is still on and in press mode
+		std::optional<int> SwitchedBar()
+		{
+			const auto& settings = Config::Get();
+			if (switchedBar >= 0 && settings.modifierEnabled[switchedBar] && settings.modifierToggle[switchedBar] &&
+				settings.modifierKeys[switchedBar] != Keys::kNone) {
+				return switchedBar;
+			}
+			return std::nullopt;
 		}
 
 		SlotState& StateOf(int a_slot)
@@ -124,6 +149,10 @@ namespace Input
 			if (a_mode == Mode::kBind) {
 				Bind(page, a_slot);
 			} else {
+				// one line per press: a press missing from the log never reached the hotbar (another mod took the key)
+				const auto form = Bindings::GetForm(page, a_slot);
+				logs::info("Key {} -> {} ({}): {}", Keys::Name(a_key), IsReadySlot(a_slot) ? "picked spell / potion" : std::format("slot {}", a_slot + 1),
+					Config::PageName(page), form ? form->GetName() : "empty");
 				Actions::Use(page, a_slot, true, a_key);
 			}
 		}
@@ -156,9 +185,16 @@ namespace Input
 
 		const bool pressed = button->IsPressed();
 
+		// extra bar keys always reach the game too
 		for (int i = 0; i < kModifierCount; ++i) {
-			if (settings.modifierEnabled[i] && settings.modifierKeys[i] == key) {
+			if (!settings.modifierEnabled[i] || settings.modifierKeys[i] != key) {
+				continue;
+			}
+			if (!settings.modifierToggle[i]) {
 				modifierDown[i] = pressed;
+			} else if (button->IsDown() && CurrentMode() != Mode::kNone) {
+				// press mode: switches to this extra bar, or back to the main bar if it is the current one
+				switchedBar = SwitchedBar() == i ? -1 : i;
 			}
 		}
 
@@ -206,6 +242,7 @@ namespace Input
 		std::scoped_lock lock(Config::Lock());
 		slotStates.fill({});
 		modifierDown.fill(false);
+		switchedBar = -1;
 	}
 
 	void BeginCapture(std::uint32_t* a_target)
@@ -227,13 +264,13 @@ namespace Input
 
 	Page CurrentPage()
 	{
-		const auto& settings = Config::Get();
-		for (int i = 0; i < kModifierCount; ++i) {
-			if (settings.modifierEnabled[i] && settings.modifierKeys[i] != Keys::kNone && modifierDown[i]) {
-				return static_cast<Page>(static_cast<int>(Page::kModifier1) + i);
-			}
-		}
-		return Page::kMain;
+		const auto bar = HeldBar().or_else(SwitchedBar);
+		return bar ? static_cast<Page>(static_cast<int>(Page::kModifier1) + *bar) : Page::kMain;
+	}
+
+	bool PageSwitched()
+	{
+		return !HeldBar() && SwitchedBar();
 	}
 
 	float SinceSlotKey()
@@ -252,8 +289,8 @@ namespace Input
 	bool InBindMenu()
 	{
 		const auto ui = RE::UI::GetSingleton();
-		if (!ui || TextEntryActive() || UI::IsBlockingWindowOpen()) {
-			return false;
+		if (!ui || TextEntryActive() || UI::IsBlockingWindowOpen() || Util::InBeastForm()) {
+			return false;  // a vampire lord can open the Magic menu, but the hotbar is off in beast form
 		}
 		return ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) ||
 		       ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME);

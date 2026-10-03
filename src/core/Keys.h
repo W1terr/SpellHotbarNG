@@ -15,5 +15,9 @@ namespace Keys
 	// Unified key code of a button event, 0 for devices we don't handle
 	std::uint32_t FromEvent(const RE::ButtonEvent* a_event);
 
+	// Gamepad key code <-> XInput button mask (what gamepad ButtonEvents carry); 0 if there is none
+	std::uint32_t FromGamepadMask(std::uint32_t a_mask);
+	std::uint32_t GamepadMask(std::uint32_t a_key);
+
 	std::string Name(std::uint32_t a_key);
 }

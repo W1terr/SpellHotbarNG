@@ -97,4 +97,29 @@ namespace Util
 		}
 		return out;
 	}
+
+	bool InBeastForm()
+	{
+		// the game's beast form flag: set by the werewolf and vampire lord scripts (and most transformation mods)
+		if (const auto controls = RE::MenuControls::GetSingleton(); controls && controls->InBeastForm()) {
+			return true;
+		}
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		const auto race = player ? player->GetRace() : nullptr;
+		if (!race) {
+			return false;
+		}
+		static RE::TESRace* werewolf = nullptr;
+		static RE::TESRace* vampireLord = nullptr;
+		if (!werewolf) {
+			const auto defaults = RE::BGSDefaultObjectManager::GetSingleton();
+			const auto object = defaults ? defaults->GetObject<RE::TESRace>(RE::DefaultObjectID::kWerewolfRace) : nullptr;
+			werewolf = object ? *object : nullptr;
+		}
+		if (!vampireLord) {
+			const auto dataHandler = RE::TESDataHandler::GetSingleton();
+			vampireLord = dataHandler ? dataHandler->LookupForm<RE::TESRace>(0x00283A, "Dawnguard.esm"sv) : nullptr;  // DLC1VampireBeastRace
+		}
+		return race == werewolf || race == vampireLord;
+	}
 }

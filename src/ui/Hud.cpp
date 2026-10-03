@@ -1,5 +1,6 @@
 #include "casting/Actions.h"
 #include "core/Bindings.h"
+#include "core/Hotkeys.h"
 #include "core/Config.h"
 #include "ui/Framework.h"
 #include "ui/Icons.h"
@@ -7,6 +8,7 @@
 #include "ui/ItemIcons.h"
 #include "core/Keys.h"
 #include "core/Lang.h"
+#include "core/Util.h"
 #include "ui/UI.h"
 
 namespace UI
@@ -127,7 +129,8 @@ namespace UI
 
 				const bool combat = player->IsInCombat();
 				const bool drawn = player->AsActorState()->IsWeaponDrawn();
-				switch (settings.visibility) {
+				// the hotbar is off in beast form: the bar fades out like with "Never"
+				switch (Util::InBeastForm() ? Visibility::kNever : settings.visibility) {
 				case Visibility::kNever:
 					ctx.visible = false;
 					break;
@@ -403,7 +406,7 @@ namespace UI
 			const bool marked = form && (Actions::IsEquipped(form) || (oblivion && (form == readySpell || form == readyPotion)));
 			const bool casting = castInfo && castInfo->page == page && castInfo->slot == slot;
 			DrawSlot(mainStyle, p0, form, Bindings::Get(page, slot).hand, marked, casting ? &*castInfo : nullptr,
-				settings.showKeyLabels ? ShortKeyName(settings.slotKeys[slot]) : std::string{});
+				settings.showKeyLabels ? Hotkeys::Label(settings, settings.slotKeys[slot]) : std::string{});
 		}
 
 		// Oblivion style ready slots: the picked spell, the picked potion and the current power, labelled with the
@@ -423,7 +426,7 @@ namespace UI
 				const int  slot = i == 0 ? kReadySpellSlot : kReadyPotionSlot;
 				const bool casting = castInfo && castInfo->slot == slot;
 				DrawSlot(style, p0, i == 0 ? readySpell : readyPotion, Bindings::Get(Page::kMain, slot).hand, false, casting ? &*castInfo : nullptr,
-					ShortKeyName(i == 0 ? settings.castKey : settings.potionKey));
+					Hotkeys::Label(settings, i == 0 ? settings.castKey : settings.potionKey));
 			}
 		}
 
@@ -432,10 +435,12 @@ namespace UI
 		if (ctx->bindMenu) {
 			header = selection ? Lang::F("Press a slot key to bind {}", selection->GetName()) : Lang::T("Select a spell or item, then press a slot key");
 			if (page != Page::kMain) {
-				header += "  " + Lang::F("[holding {}]", Keys::Name(settings.modifierKeys[static_cast<int>(page) - static_cast<int>(Page::kModifier1)]));
+				const int bar = static_cast<int>(page) - static_cast<int>(Page::kModifier1);
+				header += "  " + (Input::PageSwitched() ? std::format("[{}]", Lang::F("Extra bar {}", bar + 1)) :
+				                                          Lang::F("[holding {}]", Hotkeys::Label(settings, settings.modifierKeys[bar])));
 			}
 		} else if (settings.showPageName && page != Page::kMain) {
-			header = Keys::Name(settings.modifierKeys[static_cast<int>(page) - static_cast<int>(Page::kModifier1)]);
+			header = Hotkeys::Label(settings, settings.modifierKeys[static_cast<int>(page) - static_cast<int>(Page::kModifier1)]);
 		}
 		// above the main bar, or while binding with the main bar hidden (Oblivion style) above the small bar
 		const bool aboveMain = mainAlpha > 0.01f;

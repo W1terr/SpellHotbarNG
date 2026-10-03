@@ -88,9 +88,11 @@ struct Settings
 	std::array<std::uint32_t, kMaxSlots>      slotKeys{ 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D };
 	std::array<std::uint32_t, kModifierCount> modifierKeys{ 0x2A, 0x1D, 0x38 };
 	std::array<bool, kModifierCount>          modifierEnabled{ false, false, false };
+	std::array<bool, kModifierCount>          modifierToggle{ false, false, false };  // one press switches to the extra bar and back, instead of holding
 	bool                                      blockGameInput{ true };  // hotbar keys don't reach the game (vanilla hotkeys 1-8 etc.)
 	bool                                      onlyWhileSneaking{ false };  // outside of sneak the hotbar keys are the game's
 	bool                                      aimAtCrosshair{ true };      // aimed spells fly to the crosshair, not the combat target
+	bool                                      individualShoutCooldowns{ false };  // each shout its own cooldown instead of the game's shared one
 
 	// what slot keys do
 	KeyMode       keyMode{ KeyMode::kCast };

@@ -8,4 +8,7 @@ namespace Util
 
 	// Lower case, spaces to underscores, some punctuation dropped (matches the icon file naming)
 	std::string NormalizeName(std::string_view a_name);
+
+	// The player is a werewolf / vampire lord (or another transformation): the hotbar is off meanwhile
+	bool InBeastForm();
 }

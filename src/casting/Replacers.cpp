@@ -58,9 +58,9 @@ namespace Replacers
 			Row{ "3_aimed_concentration_left"sv, CastAnim::Type::kAimedConc, kHandLeft, "mlh_aimedconcentration.hkx"sv, "mlh_release.hkx"sv },
 			Row{ "4_self_concentration"sv, CastAnim::Type::kSelfConc, kHandAny, "mrh_selfconcentration.hkx"sv, "mrh_selfrelease.hkx"sv },
 			Row{ "4_self_concentration_left"sv, CastAnim::Type::kSelfConc, kHandLeft, "mlh_selfconcentration.hkx"sv, "mlh_selfrelease.hkx"sv },
-			Row{ "5_dual_aimed"sv, CastAnim::Type::kDualAimed, kHandAny, "ritualspell_charge.hkx"sv, "ritualspell_aimrelease.hkx"sv },
-			Row{ "6_dual_self"sv, CastAnim::Type::kDualSelf, kHandAny, "ritualspell_charge.hkx"sv, "ritualspell_release.hkx"sv },
-			Row{ "7_dual_concentration"sv, CastAnim::Type::kDualConc, kHandAny, "mlhmrh_aimedconcentrationloop.hkx"sv, "dmagaimrelease.hkx"sv },
+			Row{ "5_dual_aimed"sv, CastAnim::Type::kDualAimed, kHandAny, "dmagaimconcharge.hkx"sv, "dmagaimrelease.hkx"sv },
+			Row{ "6_dual_self"sv, CastAnim::Type::kDualSelf, kHandAny, "dmagselfconcharge.hkx"sv, "dmagselfrelease.hkx"sv },
+			Row{ "7_dual_concentration"sv, CastAnim::Type::kDualConc, kHandAny, "dmagaimconloop.hkx"sv, "dmagaimrelease.hkx"sv },
 			Row{ "8_ritual"sv, CastAnim::Type::kRitual, kHandAny, "ritualspell_charge.hkx"sv, "ritualspell_release.hkx"sv },
 			Row{ "9_dual_self_concentration"sv, CastAnim::Type::kDualSelfConc, kHandAny, "dmagselfconloop.hkx"sv, "dmagselfrelease.hkx"sv },
 		};
@@ -69,9 +69,11 @@ namespace Replacers
 		{
 			switch (a_row.type) {
 			case CastAnim::Type::kDualAimed:
-			case CastAnim::Type::kDualSelf:
 			case CastAnim::Type::kDualConc:
+				return "dmagaimconcharge.hkx"sv;  // the magic behavior's DualMagic_ReadyLoop
+			case CastAnim::Type::kDualSelf:
 			case CastAnim::Type::kDualSelfConc:
+				return "dmagselfconcharge.hkx"sv;
 			case CastAnim::Type::kRitual:
 				return "ritualspell_ready.hkx"sv;
 			case CastAnim::Type::kSelf:
@@ -137,7 +139,8 @@ namespace Replacers
 				kRandom,
 				kFemale,
 				kInCombat,
-				kSneaking
+				kSneaking,
+				kWeaponDrawn
 			};
 			Kind        kind;
 			bool        negated{ false };
@@ -305,6 +308,65 @@ namespace Replacers
 			return true;
 		}
 
+		// ---- OAR conditions -------------------------------------------------------------------------------------
+
+		std::optional<Condition> ParseOarCondition(const json& a_condition, std::string& a_error)
+		{
+			Condition  condition{};
+			const auto name = Lower(a_condition.value("condition", ""));
+			condition.negated = a_condition.value("negated", false);
+			if (name == "isequippedtype") {
+				condition.kind = a_condition.value("Left hand", false) ? Condition::Kind::kLeftType : Condition::Kind::kRightType;
+				condition.value = static_cast<int>(a_condition.at("Type").value("value", -1.0f));
+			} else if (name == "isfemale") {
+				condition.kind = Condition::Kind::kFemale;
+			} else if (name == "isincombat") {
+				condition.kind = Condition::Kind::kInCombat;
+			} else if (name == "issneaking") {
+				condition.kind = Condition::Kind::kSneaking;
+			} else if (name == "isweapondrawn") {
+				condition.kind = Condition::Kind::kWeaponDrawn;
+			} else {
+				a_error = std::format("condition \"{}\" isn't supported", a_condition.value("condition", ""));
+				return std::nullopt;
+			}
+			return condition;
+		}
+
+		// OAR: the list is ANDed; an OR of plain conditions becomes one group
+		bool ParseOarConditions(const json& a_list, std::vector<std::vector<Condition>>& a_out, std::string& a_error)
+		{
+			for (const auto& item : a_list) {
+				if (item.value("disabled", false)) {
+					continue;
+				}
+				std::vector<Condition> group;
+				if (Lower(item.value("condition", "")) == "or" && !item.value("negated", false)) {
+					for (const auto& sub : item.value("Conditions", json::array())) {
+						if (sub.value("disabled", false)) {
+							continue;
+						}
+						auto condition = ParseOarCondition(sub, a_error);
+						if (!condition) {
+							return false;
+						}
+						group.push_back(std::move(*condition));
+					}
+					if (group.empty()) {
+						continue;
+					}
+				} else {
+					auto condition = ParseOarCondition(item, a_error);
+					if (!condition) {
+						return false;
+					}
+					group.push_back(std::move(*condition));
+				}
+				a_out.push_back(std::move(group));
+			}
+			return true;
+		}
+
 		// ---- evaluation ------------------------------------------------------------------------------------------
 
 		// The equipped type numbers of DAR / OAR's IsEquippedRightType / IsEquippedLeftType
@@ -420,6 +482,9 @@ namespace Replacers
 			case Condition::Kind::kSneaking:
 				result = a_context.player->IsSneaking();
 				break;
+			case Condition::Kind::kWeaponDrawn:
+				result = a_context.player->AsActorState()->IsWeaponDrawn();
+				break;
 			}
 			return result != a_condition.negated;
 		}
@@ -505,10 +570,24 @@ namespace Replacers
 			return a_hash;
 		}
 
-		// The DAR folders animation patches enable: "darFolders": [ 996, ... ] in Data\SKSE\Plugins\SpellHotbarNG\animations\*.json
-		std::set<int> PatchedFolders()
+		// lower case clip we look for -> lower case clip of the same folder to use instead
+		using ClipMap = std::unordered_map<std::string, std::string>;
+
+		// The folders animation patches enable, in Data\SKSE\Plugins\SpellHotbarNG\animations\*.json:
+		// "darFolders": [ 996, ... ] (DAR _CustomConditions folders), "oarFolders": [ "meshes/.../<mod>/<submod>", ... ]
+		// (OAR submods, path under Data), and optionally "clipSubstitutes": { "mrh_chargeloop.hkx": "mrh_precharge.hkx" }
+		// for those folders, when the mod keeps a casting motion in another clip than vanilla does
+		struct Patched
 		{
-			std::set<int>   out;
+			std::map<int, ClipMap>                       dar;  // folder priority -> its substitutes
+			std::vector<std::pair<std::string, ClipMap>> oar;
+
+			bool empty() const { return dar.empty() && oar.empty(); }
+		};
+
+		Patched PatchedFolders()
+		{
+			Patched         out;
 			std::error_code ec;
 			const auto      dir = Config::DataDir() / "animations";
 			if (!fs::is_directory(dir, ec)) {
@@ -521,9 +600,20 @@ namespace Replacers
 				try {
 					std::ifstream file(entry.path());
 					const auto    j = json::parse(file, nullptr, true, true);
+					ClipMap       substitutes;
+					for (const auto& [clip, replacement] : j.value("clipSubstitutes", json::object()).items()) {
+						if (replacement.is_string()) {
+							substitutes.emplace(Lower(clip), Lower(replacement.get<std::string>()));
+						}
+					}
 					for (const auto& folder : j.value("darFolders", json::array())) {
 						if (folder.is_number_integer()) {
-							out.insert(folder.get<int>());
+							out.dar.emplace(folder.get<int>(), substitutes);
+						}
+					}
+					for (const auto& folder : j.value("oarFolders", json::array())) {
+						if (folder.is_string()) {
+							out.oar.emplace_back(folder.get<std::string>(), substitutes);
 						}
 					}
 				} catch (const std::exception& e) {
@@ -533,7 +623,25 @@ namespace Replacers
 			return out;
 		}
 
-		void ScanFolders(const std::set<int>& a_patched)
+		// OAR uses a submod's user.json (changes made in its menu) instead of its config.json
+		std::optional<json> ReadOarConfig(const fs::path& a_dir)
+		{
+			std::error_code ec;
+			for (const auto name : { "user.json"sv, "config.json"sv }) {
+				if (const auto path = a_dir / name; fs::exists(path, ec)) {
+					try {
+						std::ifstream file(path);
+						return json::parse(file, nullptr, true, true);
+					} catch (const std::exception& e) {
+						logs::warn("Casting animations: can't read {}: {}", path.string(), e.what());
+						return std::nullopt;
+					}
+				}
+			}
+			return std::nullopt;
+		}
+
+		void ScanFolders(const Patched& a_patched)
 		{
 			std::array<std::unordered_set<std::string>, kViewCount> wanted;
 			for (const auto& row : kRows) {
@@ -548,7 +656,38 @@ namespace Replacers
 				wanted[0].insert(std::string(clip.second));
 			}
 
+			// a folder with casting clips whose conditions can be read; a_conditions fills Folder::groups
 			std::error_code ec;
+			const auto addFolder = [&](int a_view, int a_priority, const fs::path& a_dir, const ClipMap& a_substitutes, auto a_conditions) {
+				Folder                                    folder{ .view = a_view, .priority = a_priority, .dir = a_dir };
+				std::unordered_map<std::string, fs::path> files;
+				for (const auto& file : fs::directory_iterator(a_dir, ec)) {
+					if (file.is_regular_file(ec)) {
+						files.emplace(Lower(file.path().filename().string()), file.path());
+					}
+				}
+				for (const auto& [name, path] : files) {
+					if (wanted[a_view].contains(name)) {
+						folder.clips.emplace(name, path);
+					}
+				}
+				for (const auto& [clip, replacement] : a_substitutes) {
+					if (const auto it = files.find(replacement); it != files.end() && wanted[a_view].contains(clip)) {
+						folder.clips.insert_or_assign(clip, it->second);
+					}
+				}
+				if (folder.clips.empty()) {
+					return;
+				}
+				std::string error;
+				if (!a_conditions(folder.groups, error)) {
+					logs::warn("Casting animations: {} skipped ({})", a_dir.string(), error);
+					return;
+				}
+				logs::info("Casting animations: {} ({} clips)", a_dir.string(), folder.clips.size());
+				folders.push_back(std::move(folder));
+			};
+
 			for (int view = 0; view < kViewCount; ++view) {
 				const fs::path root{ kDarRoots[view] };
 				if (!fs::is_directory(root, ec)) {
@@ -561,19 +700,10 @@ namespace Replacers
 					const auto name = entry.path().filename().string();
 					int        priority = 0;
 					if (name.find_first_not_of("-0123456789"sv) != std::string::npos ||
-						std::from_chars(name.data(), name.data() + name.size(), priority).ec != std::errc{} || !a_patched.contains(priority)) {
+						std::from_chars(name.data(), name.data() + name.size(), priority).ec != std::errc{} || !a_patched.dar.contains(priority)) {
 						continue;
 					}
-					Folder folder{ .view = view, .priority = priority, .dir = entry.path() };
-					for (const auto& file : fs::directory_iterator(entry.path(), ec)) {
-						auto lower = Lower(file.path().filename().string());
-						if (file.is_regular_file(ec) && wanted[view].contains(lower)) {
-							folder.clips.emplace(std::move(lower), file.path());
-						}
-					}
-					if (folder.clips.empty()) {
-						continue;
-					}
+					const auto& substitutes = a_patched.dar.at(priority);
 					// a submod the user turned off in OAR's menu
 					if (const auto user = entry.path() / "user.json"; fs::exists(user, ec)) {
 						try {
@@ -585,14 +715,34 @@ namespace Replacers
 						} catch (const std::exception&) {
 						}
 					}
-					std::string error;
-					if (!ParseConditions(entry.path() / "_conditions.txt", folder.groups, error)) {
-						logs::warn("Casting animations: {} skipped ({})", entry.path().string(), error);
-						continue;
-					}
-					logs::info("Casting animations: {} ({} clips)", entry.path().string(), folder.clips.size());
-					folders.push_back(std::move(folder));
+					addFolder(view, priority, entry.path(), substitutes, [&](auto& a_groups, std::string& a_error) {
+						return ParseConditions(entry.path() / "_conditions.txt", a_groups, a_error);
+					});
 				}
+			}
+
+			for (const auto& [entry, substitutes] : a_patched.oar) {
+				const auto dir = fs::path("Data") / fs::path(std::u8string(entry.begin(), entry.end()));
+				if (!fs::is_directory(dir, ec)) {
+					continue;  // that mod isn't installed
+				}
+				const auto config = ReadOarConfig(dir);
+				if (!config) {
+					continue;
+				}
+				if (config->value("disabled", false)) {
+					logs::info("Casting animations: {} is disabled in OAR, skipped", dir.string());
+					continue;
+				}
+				const int view = Lower(entry).find("_1stperson") != std::string::npos ? 1 : 0;
+				addFolder(view, config->value("priority", 0), dir, substitutes, [&](auto& a_groups, std::string& a_error) {
+					try {
+						return ParseOarConditions(config->value("conditions", json::array()), a_groups, a_error);
+					} catch (const std::exception& e) {
+						a_error = e.what();
+						return false;
+					}
+				});
 			}
 			std::ranges::stable_sort(folders, std::greater{}, &Folder::priority);
 

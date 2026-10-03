@@ -2,7 +2,10 @@
 
 #include "casting/CastAnim.h"
 #include "casting/PlayerControl.h"
+#include "casting/ShoutCooldowns.h"
+#include "casting/SpellCharges.h"
 #include "casting/VanillaCast.h"
+#include "core/Util.h"
 
 namespace Actions
 {
@@ -63,25 +66,61 @@ namespace Actions
 			float         age{ 0.0f };
 		};
 		std::optional<Queued> queued;
-		float                 airTime{ 0.0f };  // how long the player has been in the air
+		bool                  retrying{ false };  // Update is trying a queued press again (logged once, at the press)
+		float                 airTime{ 0.0f };    // how long the player has been in the air
 
 		RE::PlayerCharacter* Player()
 		{
 			return RE::PlayerCharacter::GetSingleton();
 		}
 
-		// No magic while jumping / falling, swimming (vanilla can't cast while swimming either), attacking (weapon swings
-		// incl. power attacks, bashes, drawing a bow) or drawing / sheathing (a running cast stops when that starts)
-		bool CanCastNow()
+		constexpr auto kDrawingOrSheathing = "drawing / sheathing";
+
+		// Why magic can't be used right now, nullptr if it can: no magic while jumping / falling, in beast form, swimming
+		// (vanilla can't cast while swimming either), attacking (weapon swings incl. power attacks, bashes, drawing a bow)
+		// or drawing / sheathing (a running cast stops when one of them starts)
+		const char* CastBlocker()
 		{
 			const auto player = Player();
-			if (!player || airTime >= kAirDebounce) {
-				return false;
+			if (!player) {
+				return "no player";
+			}
+			if (airTime >= kAirDebounce) {
+				return "jumping / falling";
+			}
+			if (Util::InBeastForm()) {
+				return "in beast form";
 			}
 			const auto state = player->AsActorState();
+			if (state->IsSwimming()) {
+				return "swimming";
+			}
+			if (state->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone) {
+				return "attacking";
+			}
 			const auto weapon = state->GetWeaponState();
-			return !state->IsSwimming() && state->GetAttackState() == RE::ATTACK_STATE_ENUM::kNone &&
-			       (weapon == RE::WEAPON_STATE::kSheathed || weapon == RE::WEAPON_STATE::kDrawn);
+			if (weapon != RE::WEAPON_STATE::kSheathed && weapon != RE::WEAPON_STATE::kDrawn) {
+				return kDrawingOrSheathing;
+			}
+			return nullptr;
+		}
+
+		bool CanCastNow()
+		{
+			return !CastBlocker();
+		}
+
+		std::string SlotName(int a_slot)
+		{
+			return a_slot == kReadySpellSlot ? "Cast key" : a_slot == kReadyPotionSlot ? "Potion key" : std::format("Slot {}", a_slot + 1);
+		}
+
+		// One line per refused / waiting press (not again for the retries of a queued one)
+		void LogPress(int a_slot, RE::TESForm* a_form, std::string_view a_result)
+		{
+			if (!retrying) {
+				logs::info("{} ({}): {}", SlotName(a_slot), a_form->GetName(), a_result);
+			}
 		}
 
 		void Queue(Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld)
@@ -428,6 +467,19 @@ namespace Actions
 				player->RemoveItem(cast->scroll, 1, RE::ITEM_REMOVE_REASON::kRemove, nullptr, nullptr);
 			}
 
+			// perks that count casts of equipped spells (Ordinator's Vancian Magic) don't see hotbar casts: count them here.
+			// Running out stops a concentration spell, like the perk's InterruptCast.
+			const int casts = cast->dual ? 1 : static_cast<int>(casters.size());
+			if (!cast->scroll && SpellCharges::OnHotbarCast(item, casts) && concentration) {
+				for (const auto caster : casters) {
+					caster->InterruptCast(false);
+					if (cast->dual) {
+						caster->SetDualCasting(false);
+					}
+				}
+				return false;
+			}
+
 			PlayEffectSound(item, RE::MagicSystem::SoundID::kRelease);
 			if (concentration) {
 				cast->channeling = true;
@@ -515,6 +567,7 @@ namespace Actions
 		void UseSpell(RE::SpellItem* a_spell, const SlotBinding& a_binding, Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld)
 		{
 			if (!KnowsSpell(a_spell)) {
+				LogPress(a_slot, a_spell, "not a known spell / power");
 				FailFeedback();
 				return;
 			}
@@ -536,7 +589,10 @@ namespace Actions
 				if (cast->channeling && cast->page == a_page && cast->slot == a_slot) {
 					StopChannel();
 				} else if (!cast->channeling) {
+					LogPress(a_slot, a_spell, "waits for the running cast");
 					Queue(a_page, a_slot, a_key, a_keyHeld);
+				} else {
+					LogPress(a_slot, a_spell, "ignored, a concentration spell is running");
 				}
 				return;
 			}
@@ -546,19 +602,24 @@ namespace Actions
 		void UseScroll(RE::ScrollItem* a_scroll, const SlotBinding& a_binding, Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld)
 		{
 			if (ItemCount(a_scroll) <= 0) {
+				LogPress(a_slot, a_scroll, "none left");
 				FailFeedback();
 				return;
 			}
 			if (!cast) {
 				BeginInstantCast(a_scroll, a_scroll, a_binding.hand, a_page, a_slot, a_key, a_keyHeld);
 			} else if (!cast->channeling) {
+				LogPress(a_slot, a_scroll, "waits for the running cast");
 				Queue(a_page, a_slot, a_key, a_keyHeld);
+			} else {
+				LogPress(a_slot, a_scroll, "ignored, a concentration spell is running");
 			}
 		}
 
 		void UseShout(RE::TESShout* a_shout, Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld)
 		{
 			if (!Player()->HasShout(a_shout)) {
+				LogPress(a_slot, a_shout, "shout not known");
 				FailFeedback();
 				return;
 			}
@@ -703,7 +764,14 @@ namespace Actions
 		}
 
 		const bool magic = form->Is(RE::FormType::Spell) || form->Is(RE::FormType::Scroll) || form->Is(RE::FormType::Shout);
-		if (magic && !CanCastNow()) {
+		if (const auto blocker = magic ? CastBlocker() : nullptr) {
+			// a draw / sheathe (also the draw after summoning a bound weapon) only takes a moment: the press waits for it
+			if (blocker == kDrawingOrSheathing) {
+				LogPress(a_slot, form, "waits, drawing / sheathing");
+				Queue(a_page, a_slot, a_key, a_keyHeld);
+			} else {
+				LogPress(a_slot, form, std::format("can't cast now ({})", blocker));
+			}
 			return;
 		}
 
@@ -751,6 +819,7 @@ namespace Actions
 		} else {
 			airTime = 0.0f;
 		}
+		ShoutCooldowns::Update();  // before VanillaCast presses the Shout button for a just equipped shout
 		VanillaCast::Update(a_delta);
 		CastAnim::Update(a_delta);
 
@@ -763,7 +832,9 @@ namespace Actions
 			} else if (!cast && gcdRemaining <= 0.0f) {
 				const auto next = *queued;
 				queued.reset();
+				retrying = true;
 				Use(next.page, next.slot, next.keyHeld, next.key);
+				retrying = false;
 				if (queued && queued->page == next.page && queued->slot == next.slot) {
 					queued->age = next.age;  // queued again (animation busy): keep the original press time
 				}
@@ -850,6 +921,7 @@ namespace Actions
 	{
 		VanillaCast::Reset();
 		CastAnim::Reset();
+		ShoutCooldowns::Reset();
 		queued.reset();
 		cast.reset();
 		gcdRemaining = gcdTotal = 0.0f;
@@ -877,13 +949,9 @@ namespace Actions
 		if (!a_form) {
 			return { 0.0f, 0.0f };
 		}
-		const auto player = Player();
 		switch (a_form->GetFormType()) {
 		case RE::FormType::Shout:
-			{
-				const float recovery = player ? player->GetVoiceRecoveryTime() : 0.0f;
-				return { recovery, std::max(recovery, 1.0f) };
-			}
+			return ShoutCooldowns::Get(a_form);
 		case RE::FormType::AlchemyItem:
 			{
 				const auto alch = a_form->As<RE::AlchemyItem>();
@@ -896,8 +964,7 @@ namespace Actions
 			{
 				const auto type = a_form->As<RE::SpellItem>()->GetSpellType();
 				if (type == SpellType::kVoicePower) {
-					const float recovery = player ? player->GetVoiceRecoveryTime() : 0.0f;
-					return { recovery, std::max(recovery, 1.0f) };
+					return ShoutCooldowns::Get(a_form);
 				}
 				if (type == SpellType::kSpell) {
 					return { gcdRemaining, gcdTotal };

@@ -1,7 +1,7 @@
 """
 Checks the translations in res/lang against the texts the code translates.
 
-The English texts in src/ui are the keys (T("..."), F("..."), Id("..."), Help("..."), ColorOption, combo lists).
+The English texts in src/ui and core/Hotkeys.cpp are the keys (T("..."), F("..."), Id("..."), Help("..."), ColorOption, combo lists).
 Reports keys missing from a language file, keys the code no longer uses and broken {} placeholders.
 Usage: python check_lang.py
 """
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-SOURCES = [ROOT / "src" / "ui" / name for name in ("Menu.cpp", "Hud.cpp", "UI.cpp")]
+SOURCES = [ROOT / "src" / "ui" / name for name in ("Menu.cpp", "Hud.cpp", "UI.cpp")] + [ROOT / "src" / "core" / "Hotkeys.cpp"]
 LANG_DIR = ROOT / "res" / "lang"
 
 LITERAL = r'"(?:[^"\\]|\\.)*"'
@@ -38,7 +38,7 @@ def code_keys() -> list[str]:
             add(joined(m.group(1)))
             if m.group(2):
                 add(joined(m.group(2)))
-        for m in re.finditer(r"k(?:Anchor|Visibility|Hand)Names\[\]\s*=\s*\{([^}]*)\}", src):
+        for m in re.finditer(r"k(?:Anchor|Visibility|Hand|ExtraBarMode)Names\[\]\s*=\s*\{([^}]*)\}", src):
             for lit in re.findall(LITERAL, m.group(1)):
                 add(json.loads(lit))
         for m in re.finditer(r"T\(alch->[^;]*;", src):

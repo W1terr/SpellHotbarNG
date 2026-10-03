@@ -17,8 +17,11 @@ namespace Input
 	void               CancelCapture();
 	const std::uint32_t* CaptureTarget();
 
-	// Page currently selected by held modifiers
+	// Page currently selected: by a held extra bar key, else by the last press of a press-mode extra bar key
 	Page CurrentPage();
+
+	// The current page comes from a press-mode extra bar key (nothing has to be held for it)
+	bool PageSwitched();
 
 	// Seconds since a slot key (not the Oblivion style cast / potion key) was last pressed (also to bind), 0 while one is
 	// held. Large if none was pressed yet.

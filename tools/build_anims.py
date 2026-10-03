@@ -76,16 +76,21 @@ SUBMODS = [
     ("3_aimed_concentration_left", "Left hand concentration, aimed", 3, HAND_LEFT, "mlh_aimedconcentration.hkx", "mlh_release.hkx"),
     ("4_self_concentration", "One hand concentration, on self", 4, HAND_ANY, "mrh_selfconcentration.hkx", "mrh_selfrelease.hkx"),
     ("4_self_concentration_left", "Left hand concentration, on self", 4, HAND_LEFT, "mlh_selfconcentration.hkx", "mlh_selfrelease.hkx"),
-    ("5_dual_aimed", "Dual cast, aimed", 5, HAND_ANY, "ritualspell_charge.hkx", "ritualspell_aimrelease.hkx"),
-    ("6_dual_self", "Dual cast, on self", 6, HAND_ANY, "ritualspell_charge.hkx", "ritualspell_release.hkx"),
-    ("7_dual_concentration", "Dual concentration", 7, HAND_ANY, "mlhmrh_aimedconcentrationloop.hkx", "dmagaimrelease.hkx"),
+    # dual casts: the magic behavior's DualMagic_* states (DMag* clips); ritualspell_* is for ritual spells only
+    ("5_dual_aimed", "Dual cast, aimed", 5, HAND_ANY, "dmagaimconcharge.hkx", "dmagaimrelease.hkx"),
+    ("6_dual_self", "Dual cast, on self", 6, HAND_ANY, "dmagselfconcharge.hkx", "dmagselfrelease.hkx"),
+    ("7_dual_concentration", "Dual concentration", 7, HAND_ANY, "dmagaimconloop.hkx", "dmagaimrelease.hkx"),
     ("8_ritual", "Ritual (two-handed) spell", 8, HAND_ANY, "ritualspell_charge.hkx", "ritualspell_release.hkx"),
     ("9_dual_self_concentration", "Dual concentration, on self", 9, HAND_ANY, "dmagselfconloop.hkx", "dmagselfrelease.hkx"),
 ]
 
 # 1st person ready loop (the pose a release ends in) per cast type and hand, for the "_move_ready" submods
 def ready_clip(type_id: int, hand: int) -> str:
-    if type_id in (5, 6, 7, 8, 9):
+    if type_id in (5, 7):
+        return "dmagaimconcharge.hkx"  # the magic behavior's DualMagic_ReadyLoop
+    if type_id in (6, 9):
+        return "dmagselfconcharge.hkx"
+    if type_id == 8:
         return "ritualspell_ready.hkx"
     prefix = "mlh" if hand == HAND_LEFT else "mrh"
     return f"{prefix}_selfreadyloop.hkx" if type_id in (2, 4) else f"{prefix}_readyloop.hkx"

@@ -26,6 +26,7 @@ OUTPUT = Path(sys.argv[1]) if len(sys.argv) > 1 else paths.OUTPUT / f"Spell Hotb
 CORE = STAGING / "00 Core"
 PACKS = STAGING / "10 Spell Packs"
 PATCHES = STAGING / "30 Patches"
+COMPAT = STAGING / "40 Compatibility"
 IMAGES = STAGING / "fomod" / "images"
 PLUGIN_DIR = Path("SKSE/Plugins")
 DATA_DIR = PLUGIN_DIR / "SpellHotbarNG"
@@ -74,6 +75,30 @@ def patch_plugin_xml(patch: dict) -> str:
                         </plugin>"""
 
 
+def compat_plugin_xml(patch: dict) -> str:
+    """Recommended (pre-selected) when the mod's plugin is active"""
+    return f"""
+                        <plugin name="{escape(patch['name'])}">
+                            <description>{escape(patch['description'])}</description>
+                            <files>
+                                <folder source="40 Compatibility\\{escape(patch['folder'])}" destination="" priority="0"/>
+                            </files>
+                            <typeDescriptor>
+                                <dependencyType>
+                                    <defaultType name="Optional"/>
+                                    <patterns>
+                                        <pattern>
+                                            <dependencies operator="And">
+                                                <fileDependency file="{escape(patch['plugin'])}" state="Active"/>
+                                            </dependencies>
+                                            <type name="Recommended"/>
+                                        </pattern>
+                                    </patterns>
+                                </dependencyType>
+                            </typeDescriptor>
+                        </plugin>"""
+
+
 VANILLA_ANIM_TEXT = (
     "By default Spell Hotbar NG uses the vanilla Skyrim casting animations. They come with the main files "
     "(Open Animation Replacer plays them), so there is nothing to choose here. Only pick a patch below if you use one of those animation mods and "
@@ -85,6 +110,7 @@ def module_config() -> str:
     packs = "".join(spell_pack_plugin_xml(p) for p in sorted(icons.SPELL_PACKS, key=lambda p: p[1].lower()))
     perks = "".join(spell_pack_plugin_xml(p) for p in sorted(icons.PERK_PACKS, key=lambda p: p[1].lower()))
     anim_patches = "".join(patch_plugin_xml(p) for p in patches.PATCHES)
+    compat_patches = "".join(compat_plugin_xml(p) for p in patches.COMPAT_PATCHES)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
     <moduleName>Spell Hotbar NG {VERSION}</moduleName>
@@ -121,6 +147,14 @@ def module_config() -> str:
                 </group>
                 <group name="Optional: use the animations of a mod you have installed (only pick the ones you have)" type="SelectAny">
                     <plugins order="Explicit">{anim_patches}
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
+        <installStep name="Compatibility">
+            <optionalFileGroups order="Explicit">
+                <group name="Fixes for other mods (auto-selected for installed mods)" type="SelectAny">
+                    <plugins order="Explicit">{compat_patches}
                     </plugins>
                 </group>
             </optionalFileGroups>
@@ -175,6 +209,10 @@ def main():
     for patch in patches.PATCHES:
         count = patches.build_patch(patch, PATCHES / patch["folder"])
         print(f"patch {patch['name']}: {count} files")
+    shutil.rmtree(COMPAT, ignore_errors=True)
+    for patch in patches.COMPAT_PATCHES:
+        count = patches.build_compat_patch(patch, COMPAT / patch["folder"])
+        print(f"compatibility patch {patch['name']}: {count} files")
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     if OUTPUT.exists():
@@ -203,10 +241,9 @@ def write_complete_zip():
 
 
 def write_patch_zips():
-    """Every animation patch on its own, for the no-installer version"""
-    for patch in patches.PATCHES:
+    """Every animation / compatibility patch on its own, for the no-installer version"""
+    for patch, root in [(p, PATCHES / p["folder"]) for p in patches.PATCHES] + [(p, COMPAT / p["folder"]) for p in patches.COMPAT_PATCHES]:
         out = OUTPUT.with_name(f"Spell Hotbar NG - {patch['name']} Patch.zip")
-        root = PATCHES / patch["folder"]
         if out.exists():
             out.unlink()
         with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:

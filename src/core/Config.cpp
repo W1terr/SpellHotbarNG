@@ -1,6 +1,7 @@
 #include "core/Config.h"
 
 #include "core/Bindings.h"
+#include "core/Hotkeys.h"
 #include "core/Lang.h"
 
 namespace
@@ -162,9 +163,11 @@ namespace Config
 		j["slotKeys"] = s.slotKeys;
 		j["modifierKeys"] = s.modifierKeys;
 		j["modifierEnabled"] = s.modifierEnabled;
+		j["modifierToggle"] = s.modifierToggle;
 		j["blockGameInput"] = s.blockGameInput;
 		j["onlyWhileSneaking"] = s.onlyWhileSneaking;
 		j["aimAtCrosshair"] = s.aimAtCrosshair;
+		j["individualShoutCooldowns"] = s.individualShoutCooldowns;
 
 		j["keyMode"] = static_cast<int>(s.keyMode);
 		j["castKey"] = s.castKey;
@@ -209,9 +212,11 @@ namespace Config
 		ReadArray(j, "slotKeys", s.slotKeys);
 		ReadArray(j, "modifierKeys", s.modifierKeys);
 		ReadArray(j, "modifierEnabled", s.modifierEnabled);
+		ReadArray(j, "modifierToggle", s.modifierToggle);
 		Read(j, "blockGameInput", s.blockGameInput);
 		Read(j, "onlyWhileSneaking", s.onlyWhileSneaking);
 		Read(j, "aimAtCrosshair", s.aimAtCrosshair);
+		Read(j, "individualShoutCooldowns", s.individualShoutCooldowns);
 
 		Read(j, "keyMode", s.keyMode);
 		Read(j, "castKey", s.castKey);
@@ -262,6 +267,8 @@ namespace Config
 			logs::info("No settings file yet, using defaults");
 			Lang::Set("english");
 		}
+		Hotkeys::Read(settings);
+		Hotkeys::Write(settings);  // there before hotkey tools scan (Hotkey Atlas: after kDataLoaded)
 	}
 
 	void Save()
@@ -274,6 +281,7 @@ namespace Config
 		if (WriteJsonFile(SettingsPath(), j)) {
 			dirty = false;
 		}
+		Hotkeys::Write(settings);
 	}
 
 	void MarkDirty()

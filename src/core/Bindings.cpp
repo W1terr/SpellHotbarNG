@@ -1,5 +1,6 @@
 #include "core/Bindings.h"
 
+#include "casting/ShoutCooldowns.h"
 #include "core/Util.h"
 
 namespace Bindings
@@ -76,6 +77,7 @@ namespace Bindings
 			}
 			logs::info("Saved {} slot bindings", count);
 			WriteReady(a_intfc);
+			ShoutCooldowns::Save(a_intfc);
 		}
 
 		void OnLoad(SKSE::SerializationInterface* a_intfc)
@@ -87,6 +89,10 @@ namespace Bindings
 			while (a_intfc->GetNextRecordInfo(type, version, length)) {
 				if (type == kRecordReady && version == kRecordVersion) {
 					ReadReady(a_intfc);
+					continue;
+				}
+				if (type == ShoutCooldowns::kRecord) {
+					ShoutCooldowns::Load(a_intfc, version);
 					continue;
 				}
 				if (type != kRecordBindings || version != kRecordVersion) {
@@ -122,6 +128,7 @@ namespace Bindings
 		{
 			std::scoped_lock lock(Config::Lock());
 			ClearAll();
+			ShoutCooldowns::Clear();
 		}
 	}
 
