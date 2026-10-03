@@ -690,8 +690,7 @@ namespace Actions
 		// equipped. Returns false for forms this doesn't handle.
 		bool Pick(RE::TESForm* a_form, const SlotBinding& a_binding)
 		{
-			const auto spell = a_form->As<RE::SpellItem>();
-			if ((spell && spell->GetSpellType() == SpellType::kSpell) || a_form->Is(RE::FormType::Scroll)) {
+			if (Bindings::FitsReadySlot(kReadySpellSlot, a_form)) {
 				if (!IsAvailable(a_form)) {
 					FailFeedback();
 				} else {
@@ -699,7 +698,7 @@ namespace Actions
 				}
 				return true;
 			}
-			if (a_form->Is(RE::FormType::AlchemyItem)) {
+			if (Bindings::FitsReadySlot(kReadyPotionSlot, a_form)) {
 				if (ItemCount(a_form) <= 0) {
 					FailFeedback();
 				} else {
@@ -707,7 +706,7 @@ namespace Actions
 				}
 				return true;
 			}
-			if (spell || a_form->Is(RE::FormType::Shout)) {
+			if (a_form->Is(RE::FormType::Spell) || a_form->Is(RE::FormType::Shout)) {
 				return EquipMagic(a_form, a_binding.hand);
 			}
 			return false;

@@ -177,16 +177,28 @@ namespace Bindings
 
 	bool Toggle(Page a_page, int a_slot, RE::TESForm* a_form)
 	{
-		if (!a_form || !Valid(a_page, a_slot)) {
+		if (!a_form || !(Valid(a_page, a_slot) || IsReadySlot(a_slot))) {
 			return false;
 		}
-		auto& binding = slots[static_cast<int>(a_page)][a_slot];
+		auto& binding = Get(a_page, a_slot);
 		if (binding.form == a_form->GetFormID()) {
 			binding = {};
 			return false;
 		}
 		binding = { a_form->GetFormID(), Hand::kAuto };
 		return true;
+	}
+
+	bool FitsReadySlot(int a_slot, const RE::TESForm* a_form)
+	{
+		if (!a_form) {
+			return false;
+		}
+		if (a_slot == kReadySpellSlot) {
+			const auto spell = a_form->As<RE::SpellItem>();
+			return (spell && spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell) || a_form->Is(RE::FormType::Scroll);
+		}
+		return a_slot == kReadyPotionSlot && a_form->Is(RE::FormType::AlchemyItem);
 	}
 
 	bool IsBindable(const RE::TESForm* a_form)

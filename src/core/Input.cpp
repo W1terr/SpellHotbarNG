@@ -102,6 +102,8 @@ namespace Input
 			return a_slot == kReadySpellSlot ? slotStates[kMaxSlots] : a_slot == kReadyPotionSlot ? slotStates[kMaxSlots + 1] : slotStates[a_slot];
 		}
 
+		constexpr int kNoSlot = -1;  // not a hotbar key (the pseudo slots are negative too)
+
 		// Slot of a key; the Oblivion style cast / potion keys give their pseudo slots
 		int FindSlot(std::uint32_t a_key)
 		{
@@ -119,19 +121,23 @@ namespace Input
 					return i;
 				}
 			}
-			return -1;
+			return kNoSlot;
 		}
 
+		// The Oblivion style cast / potion key bind to their pseudo slots
 		void Bind(Page a_page, int a_slot)
 		{
+			const auto target = a_slot == kReadySpellSlot  ? std::string{ "cast key" } :
+			                    a_slot == kReadyPotionSlot ? std::string{ "potion key" } :
+			                                                 std::format("slot {} ({})", a_slot + 1, Config::PageName(a_page));
 			const auto form = MenuSelection();
 			if (!form) {
-				logs::info("Bind slot {} ({}): no selected item found in the open menu", a_slot + 1, Config::PageName(a_page));
+				logs::info("Bind {}: no selected item found in the open menu", target);
 				RE::PlaySound("MAGFailSD");
 				return;
 			}
-			logs::info("Bind slot {} ({}): {} [{:08X}]", a_slot + 1, Config::PageName(a_page), form->GetName(), form->GetFormID());
-			if (!Bindings::IsBindable(form)) {
+			logs::info("Bind {}: {} [{:08X}]", target, form->GetName(), form->GetFormID());
+			if (IsReadySlot(a_slot) ? !Bindings::FitsReadySlot(a_slot, form) : !Bindings::IsBindable(form)) {
 				RE::PlaySound("MAGFailSD");
 				return;
 			}
@@ -199,7 +205,7 @@ namespace Input
 		}
 
 		const auto slot = FindSlot(key);
-		if (slot < 0) {
+		if (slot == kNoSlot) {
 			return false;
 		}
 
@@ -215,7 +221,7 @@ namespace Input
 		}
 
 		const auto mode = CurrentMode();
-		if (mode == Mode::kNone || (mode == Mode::kBind && IsReadySlot(slot))) {
+		if (mode == Mode::kNone) {
 			return false;
 		}
 

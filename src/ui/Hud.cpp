@@ -343,9 +343,9 @@ namespace UI
 		const auto& settings = Config::Get();
 		const auto  page = Input::CurrentPage();
 		const bool  oblivion = settings.keyMode == KeyMode::kOblivion;
-		// Oblivion style: the main bar only shows up while picking or binding (slot key, extra bar key held), always in the
-		// settings preview
-		const bool wantMain = !oblivion || !settings.readyHideMainBar || page != Page::kMain || Input::SinceSlotKey() < kPeekTime;
+		// Oblivion style: the main bar only shows up for a moment after a slot key (picking or binding), always in the
+		// settings preview; extra bar keys don't bring it up
+		const bool wantMain = !oblivion || !settings.readyHideMainBar || Input::SinceSlotKey() < kPeekTime;
 		if (ctx->preview) {
 			mainShown = 1.0f;
 		} else {

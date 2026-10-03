@@ -259,10 +259,11 @@ namespace UI
 			Changed(SliderFloat(Id("Offset X", "readyOffsetX").c_str(), &s.readyOffsetX, -1920.0f, 1920.0f, "%.0f px"));
 			Changed(SliderFloat(Id("Offset Y", "readyOffsetY").c_str(), &s.readyOffsetY, -1080.0f, 1080.0f, "%.0f px"));
 			Changed(Checkbox(Id("Show power", "readyShowPower").c_str(), &s.readyShowPower));
+			Help("A third slot with your current power or shout, labelled with the game's Shout key.");
 			Changed(Checkbox(Id("Vertical", "readyVertical").c_str(), &s.readyVertical));
 			Changed(Checkbox(Id("Hide the main bar until I pick a spell", "readyHideMainBar").c_str(), &s.readyHideMainBar));
 			Help("On: only this small bar stays on screen. The main bar shows up for a moment when you\n"
-				 "press a slot key (also when binding in the Magic / Inventory menu) or hold an extra bar's key.\n"
+				 "press a slot key (also when binding in the Magic / Inventory menu).\n"
 				 "Off: both bars are shown.");
 			if (Button(Id("Reset position", "readyResetPosition").c_str())) {
 				const Settings defaults{};

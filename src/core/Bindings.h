@@ -41,6 +41,9 @@ namespace Bindings
 	// Forms that can sit in a slot
 	bool IsBindable(const RE::TESForm* a_form);
 
+	// Oblivion style: spells / scrolls for the cast key, potions for the potion key
+	bool FitsReadySlot(int a_slot, const RE::TESForm* a_form);
+
 	json ToJson();
 	void FromJson(const json& a_json);
 
