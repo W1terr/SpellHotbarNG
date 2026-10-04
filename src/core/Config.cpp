@@ -147,6 +147,7 @@ namespace Config
 		j["offsetY"] = s.offsetY;
 		j["opacity"] = s.opacity;
 		j["visibility"] = static_cast<int>(s.visibility);
+		j["keyPressShowTime"] = s.keyPressShowTime;
 		j["fadeOutOfCombat"] = s.fadeOutOfCombat;
 		j["fadedOpacity"] = s.fadedOpacity;
 		j["showEmptySlots"] = s.showEmptySlots;
@@ -195,6 +196,7 @@ namespace Config
 		Read(j, "offsetY", s.offsetY);
 		Read(j, "opacity", s.opacity);
 		Read(j, "visibility", s.visibility);
+		Read(j, "keyPressShowTime", s.keyPressShowTime);
 		Read(j, "fadeOutOfCombat", s.fadeOutOfCombat);
 		Read(j, "fadedOpacity", s.fadedOpacity);
 		Read(j, "showEmptySlots", s.showEmptySlots);
@@ -238,7 +240,8 @@ namespace Config
 		s.spacing = std::clamp(s.spacing, 0.0f, 100.0f);
 		s.anchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.anchor), 0, 8));
 		s.opacity = std::clamp(s.opacity, 0.05f, 1.0f);
-		s.visibility = static_cast<Visibility>(std::clamp(static_cast<int>(s.visibility), 0, 5));
+		s.visibility = static_cast<Visibility>(std::clamp(static_cast<int>(s.visibility), 0, 6));
+		s.keyPressShowTime = std::clamp(s.keyPressShowTime, 0.5f, 10.0f);
 		s.fadedOpacity = std::clamp(s.fadedOpacity, 0.0f, 1.0f);
 		s.keyMode = static_cast<KeyMode>(std::clamp(static_cast<int>(s.keyMode), 0, 2));
 		s.readyAnchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.readyAnchor), 0, 8));

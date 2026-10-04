@@ -146,6 +146,10 @@ namespace UI
 				case Visibility::kSneaking:
 					ctx.visible = player->AsActorState()->IsSneaking();
 					break;
+				case Visibility::kKeyPress:
+					// also while a hotbar spell charges / channels
+					ctx.visible = Input::SinceHotbarKey() < settings.keyPressShowTime || Actions::CurrentCast().has_value();
+					break;
 				default:
 					break;
 				}
@@ -299,7 +303,7 @@ namespace UI
 				}
 
 				// hand marker
-				if (a_hand != Hand::kAuto && (a_form->Is(RE::FormType::Spell) || a_form->Is(RE::FormType::Scroll) || a_form->Is(RE::FormType::Weapon))) {
+				if (a_hand != Hand::kAuto && Bindings::UsesHand(a_form)) {
 					const char* hand = a_hand == Hand::kLeft ? "L" : a_hand == Hand::kRight ? "R" : "D";
 					DrawText(list, st.smallSize, ImVec2{ p0.x + size * 0.08f, p0.y + size * 0.04f }, hand, colors.handMarker, alpha);
 				}

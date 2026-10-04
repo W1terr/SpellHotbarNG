@@ -15,9 +15,9 @@ namespace UI
 		using Lang::T;
 
 		constexpr const char* kAnchorNames[] = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" };
-		constexpr const char* kVisibilityNames[] = { "Always", "In combat", "Weapons / magic drawn", "In combat or drawn", "Never (only in menus)", "While sneaking" };
+		constexpr const char* kVisibilityNames[] = { "Always", "In combat", "Weapons / magic drawn", "In combat or drawn", "Never (only in menus)", "While sneaking",
+			"After pressing a hotbar key" };
 		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
-		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };
 
 		// Translated texts of a fixed list (combo items)
 		template <std::size_t N>
@@ -160,15 +160,6 @@ namespace UI
 			}
 		}
 
-		// the Hand setting only does something for spells, scrolls and weapons (same rule as the L / R / D marker)
-		bool UsesHand(RE::TESForm* a_form)
-		{
-			if (const auto spell = a_form->As<RE::SpellItem>()) {
-				return spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell;
-			}
-			return a_form->Is(RE::FormType::Scroll) || a_form->Is(RE::FormType::Weapon);
-		}
-
 		int bindingsPage{ 0 };  // page tab selected on the Bindings page
 
 		// ---- profiles -----------------------------------------------------------------------
@@ -281,6 +272,11 @@ namespace UI
 			s.visibility = static_cast<Visibility>(visibility);
 			Changed(true);
 		}
+		if (s.visibility == Visibility::kKeyPress) {
+			Changed(SliderFloat(Id("Show for", "keyPressShowTime").c_str(), &s.keyPressShowTime, 0.5f, 10.0f, "%.1f s"));
+			Help("The bar shows up while you hold a slot key (or the Oblivion style Cast / Potion key)\n"
+				 "and while a hotbar spell charges, then stays this long before it fades out.");
+		}
 		Changed(SliderFloat(Id("Opacity", "opacity").c_str(), &s.opacity, 0.05f, 1.0f, "%.2f"));
 		Changed(Checkbox(Id("Fade out of combat", "fadeOutOfCombat").c_str(), &s.fadeOutOfCombat));
 		if (s.fadeOutOfCombat) {
@@ -325,8 +321,8 @@ namespace UI
 			Help("Pressing a slot casts its spell with the casting animation. Nothing gets equipped,\n"
 				 "your weapons stay in your hands. Powers and shouts are used right away too.");
 			RadioButton(Id("Equip", "modeEquip").c_str(), &mode, static_cast<int>(KeyMode::kEquip));
-			Help("Pressing a slot equips its spell or scroll in the slot's hand (set on the bar's tab:\n"
-				 "Auto = right hand, Both = both hands). Powers and shouts are equipped to your Shout key.\n"
+			Help("Pressing a slot equips its spell or scroll in the slot's hand (right unless you changed it\n"
+				 "in the Magic menu). Powers and shouts are equipped to your Shout key.\n"
 				 "You then cast them with the game's normal attack / shout buttons.");
 			RadioButton(Id("Oblivion style", "modeOblivion").c_str(), &mode, static_cast<int>(KeyMode::kOblivion));
 			Help("Pressing a slot picks its spell, then the Cast key casts the picked spell with the\n"
@@ -471,23 +467,22 @@ namespace UI
 
 		TextWrapped("%s", T("To put something on the bar: open the Magic menu (or Inventory / Favorites), select a spell or item "
 							"and press a slot key. Hold an extra bar's key at the same time to put it on that bar. "
-							"Doing it again with the same spell removes it."));
+							"Press the key again on the same spell to change its hand: right, left (L), both hands (D). "
+							"Other items are removed that way. Clear removes anything."));
 		Spacing();
 
 		const auto page = static_cast<Page>(bindingsPage);
 		const float iconSize = GetFrameHeight() * 1.3f;
-		if (BeginTable("##bindings", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
+		if (BeginTable("##bindings", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
 			TableSetupColumn(T("Slot"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn(T("Key"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn(T("Spell / item"), ImGuiTableColumnFlags_WidthStretch, 0.0f);
-			TableSetupColumn(T("Hand"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableHeadersRow();
 
 			for (int slot = 0; slot < s.slotCount; ++slot) {
 				PushID(slot);
 				TableNextRow();
-				auto&      binding = Bindings::Get(page, slot);
 				const auto form = Bindings::GetForm(page, slot);
 
 				TableNextColumn();
@@ -507,16 +502,6 @@ namespace UI
 					TextColored(kGrey, "%s", TypeName(form));
 				} else {
 					TextDisabled("%s", T("empty"));
-				}
-
-				TableNextColumn();
-				if (form && UsesHand(form)) {
-					int hand = static_cast<int>(binding.hand);
-					const auto handNames = Translated(kHandNames);
-					SetNextItemWidth(90.0f);
-					if (Combo("##hand", &hand, handNames.data(), static_cast<int>(handNames.size()))) {
-						binding.hand = static_cast<Hand>(hand);
-					}
 				}
 
 				TableNextColumn();

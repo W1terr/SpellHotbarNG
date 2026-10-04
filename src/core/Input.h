@@ -27,6 +27,9 @@ namespace Input
 	// held. Large if none was pressed yet.
 	float SinceSlotKey();
 
+	// The same for slot keys and the Oblivion style cast / potion keys (the "After pressing a hotbar key" visibility)
+	float SinceHotbarKey();
+
 	// Binding happens by pressing slot keys while one of these menus has an item selected
 	bool         InBindMenu();
 	RE::TESForm* MenuSelection();

@@ -175,18 +175,40 @@ namespace Bindings
 		readyPotion = {};
 	}
 
-	bool Toggle(Page a_page, int a_slot, RE::TESForm* a_form)
+	MenuBind BindFromMenu(Page a_page, int a_slot, RE::TESForm* a_form)
 	{
 		if (!a_form || !(Valid(a_page, a_slot) || IsReadySlot(a_slot))) {
-			return false;
+			return MenuBind::kCleared;
 		}
 		auto& binding = Get(a_page, a_slot);
-		if (binding.form == a_form->GetFormID()) {
-			binding = {};
-			return false;
+		if (binding.form != a_form->GetFormID()) {
+			binding = { a_form->GetFormID(), Hand::kAuto };
+			return MenuBind::kBound;
 		}
-		binding = { a_form->GetFormID(), Hand::kAuto };
-		return true;
+		if (!UsesHand(a_form)) {
+			binding = {};
+			return MenuBind::kCleared;
+		}
+		switch (binding.hand) {
+		case Hand::kLeft:
+			binding.hand = a_form->Is(RE::FormType::Weapon) ? Hand::kAuto : Hand::kBoth;
+			break;
+		case Hand::kBoth:
+			binding.hand = Hand::kAuto;
+			break;
+		default:
+			binding.hand = Hand::kLeft;
+			break;
+		}
+		return MenuBind::kHandChanged;
+	}
+
+	bool UsesHand(const RE::TESForm* a_form)
+	{
+		if (const auto spell = a_form ? a_form->As<RE::SpellItem>() : nullptr) {
+			return spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell && !spell->IsTwoHanded();
+		}
+		return a_form && (a_form->Is(RE::FormType::Scroll) || a_form->Is(RE::FormType::Weapon));
 	}
 
 	bool FitsReadySlot(int a_slot, const RE::TESForm* a_form)

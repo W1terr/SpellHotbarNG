@@ -49,7 +49,7 @@ namespace CastAnim
 	enum class StartResult
 	{
 		kStarted,
-		kBusy,    // the release animation of the previous cast is still playing, try again next frame
+		kBusy,    // the previous cast's release or a weapon draw / sheathe is still playing, try again next frame
 		kRefused  // the behavior graph can't play it (swimming, mounted, ...), cast without animation
 	};
 

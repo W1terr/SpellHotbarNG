@@ -72,7 +72,24 @@ GOETIA_MAGIC_CASTING = {
     "clip_substitutes": {"mrh_chargeloop.hkx": "mrh_precharge.hkx", "mlh_chargeloop.hkx": "mlh_precharge.hkx"},
 }
 
-PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING]
+# SIGMA - Magic animations - 1st person (Nexus 166987, version 1.0.3), an OAR mod, first person only. Submods per school
+# (Alt / Con / Des / Ill / Res; IsEquippedType 12-16) for the right hand, left hand and both hands (B, only dual casting
+# clips), plus higher priority "Cast" submods with only release clips. Several clips sit in OAR _variants_<clip> folders
+# (e.g. two Destruction releases), one of them is picked per cast. Its m?h_precharge is a short lead-in and
+# m?h_chargeloop the wind-up loop, like vanilla, so no clip substitutes. The *_dodge submods have no casting clips.
+SIGMA_ROOT = "meshes/actors/character/_1stperson/animations/OpenAnimationReplacer/Sigma - Magic"
+SIGMA_MAGIC_ANIMATIONS = {
+    "name": "SIGMA - Magic animations - 1st person",
+    "folder": "SIGMA - Magic animations - 1st person",
+    "description": "Use the animations of \"SIGMA - Magic animations - 1st person\" for Spell Hotbar NG casts in first "
+                   "person. Needs that mod installed; contains no animations itself. At game start Spell Hotbar NG copies "
+                   "its animations for the hotbar (in MO2 they end up in the overwrite folder).",
+    "oar_folders": [f"{SIGMA_ROOT}/Mag{school}{part}"
+                    for school in ("Alt", "Con", "Des", "Ill", "Res")
+                    for part in ("R", "L", "B", "RCast", "LCast")],
+}
+
+PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING, SIGMA_MAGIC_ANIMATIONS]
 
 # Compatibility patches: a file in Data\SKSE\Plugins\SpellHotbarNG\compat read by the DLL (src/casting/SpellCharges.h).
 # Ordinator - Perks of Skyrim (Nexus 1137), Alteration perk "Vancian Magic": ORD_NewVancianMagicCast_Script (on effect
@@ -80,6 +97,8 @@ PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING]
 # hand, shows _Message_AlmostDepleted at 10 and _Message_Depleted + InterruptCast at 0; the "Dungeon Master" blood
 # magic variant (ORD_VancianBloodMagic_Script on _Effect_Ab_Blood) also lowers it and below 0 costs
 # -count * _Global_DungeonMaster_BloodMagicMult health. Hotbar casts equip nothing, so the scripts never counted them.
+# Both effects sit on ORD_Alt_NewVancianMagic_Spell_Ab with exclusive conditions (normal: count > 0; blood: count <= 0
+# and _Global_DungeonMaster_SideEffects == 3), so the DLL only applies the rule whose effect is currently active.
 ORDINATOR = "Ordinator - Perks of Skyrim.esp"
 ORDINATOR_VANCIAN_MAGIC = {
     "name": "Ordinator - Vancian Magic",

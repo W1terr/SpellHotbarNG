@@ -35,7 +35,8 @@ enum class Visibility : int
 	kWeaponDrawn,
 	kCombatOrWeaponDrawn,
 	kNever,
-	kSneaking
+	kSneaking,
+	kKeyPress  // for a moment after a slot key (or the Oblivion style cast / potion key)
 };
 
 // What pressing a slot key does with spells, scrolls, powers and shouts (items always work the same)
@@ -74,6 +75,7 @@ struct Settings
 	float      offsetY{ -100.0f };
 	float      opacity{ 1.0f };
 	Visibility visibility{ Visibility::kAlways };
+	float      keyPressShowTime{ 3.0f };  // Visibility::kKeyPress: seconds the bar stays after the key is let go
 	bool       fadeOutOfCombat{ false };
 	float      fadedOpacity{ 0.35f };
 	bool       showEmptySlots{ true };

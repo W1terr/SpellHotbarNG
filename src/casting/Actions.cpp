@@ -533,7 +533,9 @@ namespace Actions
 				next.chargeTotal = concentration ? kAnimConcWindup : std::max(next.chargeTotal, kAnimMinCharge);
 				switch (CastAnim::Start(CastAnim::Choose(a_item, twoHands), side, a_item)) {
 				case CastAnim::StartResult::kBusy:
-					// the previous release animation is still playing: wait for it, don't cast over it
+					// the previous release animation or a weapon draw / sheathe is still playing: wait for it, don't
+					// cast over it
+					LogPress(a_slot, a_item, "waits for the current animation");
 					Queue(a_page, a_slot, a_key, a_keyHeld);
 					return;
 				case CastAnim::StartResult::kRefused:

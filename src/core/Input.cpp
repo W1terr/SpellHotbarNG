@@ -27,6 +27,7 @@ namespace Input
 		// slot keys, then the Oblivion style cast key and potion key
 		std::array<SlotState, kMaxSlots + 2> slotStates{};
 		std::chrono::steady_clock::time_point lastSlotKey{};
+		std::chrono::steady_clock::time_point lastHotbarKey{};  // slot keys and the Oblivion style cast / potion keys
 		std::array<bool, kModifierCount> modifierDown{};
 		int                              switchedBar{ -1 };  // extra bar picked with a press-mode key, -1 = main bar
 		std::uint32_t*                   captureTarget{ nullptr };
@@ -141,15 +142,30 @@ namespace Input
 				RE::PlaySound("MAGFailSD");
 				return;
 			}
-			RE::PlaySound(Bindings::Toggle(a_page, a_slot, form) ? "UIFavorite" : "UIUnFavorite");
+			switch (Bindings::BindFromMenu(a_page, a_slot, form)) {
+			case Bindings::MenuBind::kBound:
+				RE::PlaySound("UIFavorite");
+				break;
+			case Bindings::MenuBind::kHandChanged:
+				{
+					constexpr const char* kHands[] = { "right", "right", "left", "both" };
+					logs::info("Bind {}: hand -> {}", target, kHands[static_cast<int>(Bindings::Get(a_page, a_slot).hand)]);
+					RE::PlaySound("UIMenuFocus");
+				}
+				break;
+			case Bindings::MenuBind::kCleared:
+				RE::PlaySound("UIUnFavorite");
+				break;
+			}
 		}
 
 		// A slot key press uses (or in a menu binds) the slot right away, on the page of the held modifier
 		void OnDown(int a_slot, std::uint32_t a_key, Mode a_mode)
 		{
 			StateOf(a_slot) = { true, a_mode };
+			lastHotbarKey = std::chrono::steady_clock::now();
 			if (!IsReadySlot(a_slot)) {
-				lastSlotKey = std::chrono::steady_clock::now();
+				lastSlotKey = lastHotbarKey;
 			}
 			const auto page = CurrentPage();
 			if (a_mode == Mode::kBind) {
@@ -279,17 +295,26 @@ namespace Input
 		return !HeldBar() && SwitchedBar();
 	}
 
+	namespace
+	{
+		float SecondsSince(std::chrono::steady_clock::time_point a_time)
+		{
+			if (a_time == std::chrono::steady_clock::time_point{}) {
+				return std::numeric_limits<float>::max();
+			}
+			return std::chrono::duration<float>(std::chrono::steady_clock::now() - a_time).count();
+		}
+	}
+
 	float SinceSlotKey()
 	{
-		for (int i = 0; i < kMaxSlots; ++i) {
-			if (slotStates[i].down) {
-				return 0.0f;
-			}
-		}
-		if (lastSlotKey == std::chrono::steady_clock::time_point{}) {
-			return std::numeric_limits<float>::max();
-		}
-		return std::chrono::duration<float>(std::chrono::steady_clock::now() - lastSlotKey).count();
+		const bool held = std::ranges::any_of(slotStates | std::views::take(kMaxSlots), &SlotState::down);
+		return held ? 0.0f : SecondsSince(lastSlotKey);
+	}
+
+	float SinceHotbarKey()
+	{
+		return std::ranges::any_of(slotStates, &SlotState::down) ? 0.0f : SecondsSince(lastHotbarKey);
 	}
 
 	bool InBindMenu()

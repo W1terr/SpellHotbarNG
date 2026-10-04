@@ -4,7 +4,7 @@
 
 enum class Hand : std::uint8_t
 {
-	kAuto = 0,
+	kAuto = 0,  // right hand, without the HUD letter
 	kRight,
 	kLeft,
 	kBoth
@@ -35,11 +35,22 @@ namespace Bindings
 	void               Clear(Page a_page, int a_slot);
 	void               ClearAll();
 
-	// Bind from a menu: binding the same form again clears the slot. Returns true if bound.
-	bool Toggle(Page a_page, int a_slot, RE::TESForm* a_form);
+	enum class MenuBind
+	{
+		kBound,
+		kHandChanged,
+		kCleared
+	};
+
+	// Bind from a menu (like SpellHotbar2): the same form again cycles its hand right -> left -> both -> right, or
+	// clears the slot for forms without a hand
+	MenuBind BindFromMenu(Page a_page, int a_slot, RE::TESForm* a_form);
 
 	// Forms that can sit in a slot
 	bool IsBindable(const RE::TESForm* a_form);
+
+	// The hand only matters for one-handed spells, scrolls and weapons (weapons: right / left)
+	bool UsesHand(const RE::TESForm* a_form);
 
 	// Oblivion style: spells / scrolls for the cast key, potions for the potion key
 	bool FitsReadySlot(int a_slot, const RE::TESForm* a_form);

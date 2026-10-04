@@ -43,6 +43,11 @@ namespace CastAnim
 		float           sinceStop{ kLongAgo };  // seconds since the last cast's shout state was ended
 		bool            stopAtEnd{ false };     // lingering after a release: "ShoutStop" still has to be sent
 
+		// The weapon state reads drawn / sheathed while the draw / sheathe clip still plays, and the graph refuses
+		// "ShoutStart" until it ends: a start refused within kDrawGrace of a draw / sheathe waits for it too.
+		constexpr float kDrawGrace = 1.5f;
+		float           sinceDraw{ kLongAgo };  // seconds since the weapon was last drawing / sheathing
+
 		// Release clip lengths from animation replacer timing files: (first person, type, side) -> seconds.
 		// Side 0 entries apply to every side.
 		std::map<std::tuple<bool, int, int>, float> timings;
@@ -372,10 +377,18 @@ namespace CastAnim
 			return ClipReleaseDuration(a_type, firstPerson);
 		}
 
-		// a release / stop animation of ours is still playing or blending out
+		// a release / stop animation of ours, or a weapon draw / sheathe, is still playing or blending out
 		bool Busy()
 		{
-			return lingering || sinceStop < kRefusalGrace;
+			return lingering || sinceStop < kRefusalGrace || sinceDraw < kDrawGrace;
+		}
+
+		void UpdateDrawTimer(float a_delta)
+		{
+			const auto player = Player();
+			const auto weapon = player ? player->AsActorState()->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
+			const bool moving = weapon != RE::WEAPON_STATE::kSheathed && weapon != RE::WEAPON_STATE::kDrawn;
+			sinceDraw = moving ? 0.0f : std::min(sinceDraw + a_delta, kLongAgo);
 		}
 
 		float CurrentReleaseDuration()
@@ -550,6 +563,7 @@ namespace CastAnim
 	void Update(float a_delta)
 	{
 		sinceStop = std::min(sinceStop + a_delta, kLongAgo);
+		UpdateDrawTimer(a_delta);
 		UpdateHandArt(a_delta);
 		RestoreSyncIdleLocomotion();  // the graph picked the shout's start state during the last update
 		ShoutBlend::Update(shoutActive.load());  // moving casts: upper body from the casting clip

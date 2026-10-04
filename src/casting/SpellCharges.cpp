@@ -54,6 +54,21 @@ namespace SpellCharges
 			}
 		}
 
+		// Whether the effect is on the player and its conditions currently pass, i.e. its script would get OnSpellCast.
+		// HasMagicEffect also finds effects switched off by their conditions: Ordinator's Vancian and blood magic effects
+		// sit on the same ability (charges left > 0 / <= 0), so both counted every cast.
+		bool IsEffectActive(RE::PlayerCharacter* a_player, const RE::EffectSetting* a_effect)
+		{
+			const auto list = a_player->AsMagicTarget()->GetActiveEffectList();
+			if (!list) {
+				return false;
+			}
+			using Flag = RE::ActiveEffect::Flag;
+			return std::ranges::any_of(*list, [&](const RE::ActiveEffect* a_active) {
+				return a_active && a_active->GetBaseObject() == a_effect && a_active->flags.none(Flag::kInactive, Flag::kDispelled);
+			});
+		}
+
 		// one counted cast, like the perk's OnSpellCast: returns true if it interrupts
 		bool CountCast(const Rule& a_rule, RE::PlayerCharacter* a_player)
 		{
@@ -128,7 +143,7 @@ namespace SpellCharges
 		}
 		bool interrupt = false;
 		for (const auto& rule : rules) {
-			if (!player->AsMagicTarget()->HasMagicEffect(rule.activeEffect)) {
+			if (!IsEffectActive(player, rule.activeEffect)) {
 				continue;
 			}
 			for (int i = 0; i < a_casts; ++i) {

@@ -156,10 +156,12 @@ namespace Replacers
 			int                                          priority{ 0 };
 			fs::path                                     dir;
 			std::vector<std::vector<Condition>>          groups;  // all groups must hold, one condition per group
-			std::unordered_map<std::string, fs::path>    clips;   // lower case file name -> path
+			// lower case clip name -> its file, or the files of an OAR _variants_<clip> folder (one is picked per cast)
+			std::unordered_map<std::string, std::vector<fs::path>> clips;
 		};
 
-		// one replacer clip a cast can pick: a DAR folder's clip for a row, view and role. Its "Variant" id is index + 1.
+		// one replacer clip a cast can pick: a folder's clip (or one of its variants) for a row, view and role. Its
+		// "Variant" id is index + 1.
 		struct Source
 		{
 			std::size_t row;
@@ -641,6 +643,39 @@ namespace Replacers
 			return std::nullopt;
 		}
 
+		// The .hkx files of an OAR _variants_<clip> folder, without the ones turned off in the submod's
+		// replacementAnimDatas (or none if the whole animation is off), sorted so the output stays the same
+		std::vector<fs::path> VariantFiles(const fs::path& a_dir, const json& a_config)
+		{
+			const auto                      dirName = Lower(a_dir.filename().string());
+			std::unordered_set<std::string> disabled;
+			for (const auto& data : a_config.value("replacementAnimDatas", json::array())) {
+				auto path = data.value("path", "");
+				std::ranges::replace(path, '\\', '/');
+				if (Lower(fs::path(path).filename().string()) != dirName) {
+					continue;
+				}
+				if (data.value("disabled", false)) {
+					return {};
+				}
+				for (const auto& variant : data.value("variants", json::array())) {
+					if (variant.value("disabled", false)) {
+						disabled.insert(Lower(variant.value("filename", "")));
+					}
+				}
+			}
+			std::vector<fs::path> files;
+			std::error_code       ec;
+			for (const auto& entry : fs::directory_iterator(a_dir, ec)) {
+				const auto name = Lower(entry.path().filename().string());
+				if (entry.is_regular_file(ec) && name.ends_with(".hkx") && !disabled.contains(name)) {
+					files.push_back(entry.path());
+				}
+			}
+			std::ranges::sort(files);
+			return files;
+		}
+
 		void ScanFolders(const Patched& a_patched)
 		{
 			std::array<std::unordered_set<std::string>, kViewCount> wanted;
@@ -656,19 +691,27 @@ namespace Replacers
 				wanted[0].insert(std::string(clip.second));
 			}
 
-			// a folder with casting clips whose conditions can be read; a_conditions fills Folder::groups
+			// a folder with casting clips whose conditions can be read; a_conditions fills Folder::groups. a_oarConfig: the
+			// OAR submod's config, which also enables _variants_<clip> folders (they win over a <clip>.hkx, like in OAR)
 			std::error_code ec;
-			const auto addFolder = [&](int a_view, int a_priority, const fs::path& a_dir, const ClipMap& a_substitutes, auto a_conditions) {
-				Folder                                    folder{ .view = a_view, .priority = a_priority, .dir = a_dir };
-				std::unordered_map<std::string, fs::path> files;
-				for (const auto& file : fs::directory_iterator(a_dir, ec)) {
-					if (file.is_regular_file(ec)) {
-						files.emplace(Lower(file.path().filename().string()), file.path());
+			constexpr auto  kVariantsPrefix = "_variants_"sv;
+			const auto addFolder = [&](int a_view, int a_priority, const fs::path& a_dir, const ClipMap& a_substitutes, const json* a_oarConfig,
+									   auto a_conditions) {
+				Folder                                                 folder{ .view = a_view, .priority = a_priority, .dir = a_dir };
+				std::unordered_map<std::string, std::vector<fs::path>> files;
+				for (const auto& entry : fs::directory_iterator(a_dir, ec)) {
+					const auto name = Lower(entry.path().filename().string());
+					if (entry.is_regular_file(ec)) {
+						files.try_emplace(name, std::vector{ entry.path() });
+					} else if (a_oarConfig && name.starts_with(kVariantsPrefix) && entry.is_directory(ec)) {
+						if (auto variants = VariantFiles(entry.path(), *a_oarConfig); !variants.empty()) {
+							files.insert_or_assign(name.substr(kVariantsPrefix.size()) + ".hkx", std::move(variants));
+						}
 					}
 				}
-				for (const auto& [name, path] : files) {
+				for (const auto& [name, paths] : files) {
 					if (wanted[a_view].contains(name)) {
-						folder.clips.emplace(name, path);
+						folder.clips.emplace(name, paths);
 					}
 				}
 				for (const auto& [clip, replacement] : a_substitutes) {
@@ -684,7 +727,11 @@ namespace Replacers
 					logs::warn("Casting animations: {} skipped ({})", a_dir.string(), error);
 					return;
 				}
-				logs::info("Casting animations: {} ({} clips)", a_dir.string(), folder.clips.size());
+				std::size_t fileCount = 0;
+				for (const auto& paths : folder.clips | std::views::values) {
+					fileCount += paths.size();
+				}
+				logs::info("Casting animations: {} ({} clips, {} files)", a_dir.string(), folder.clips.size(), fileCount);
 				folders.push_back(std::move(folder));
 			};
 
@@ -715,7 +762,7 @@ namespace Replacers
 						} catch (const std::exception&) {
 						}
 					}
-					addFolder(view, priority, entry.path(), substitutes, [&](auto& a_groups, std::string& a_error) {
+					addFolder(view, priority, entry.path(), substitutes, nullptr, [&](auto& a_groups, std::string& a_error) {
 						return ParseConditions(entry.path() / "_conditions.txt", a_groups, a_error);
 					});
 				}
@@ -735,7 +782,7 @@ namespace Replacers
 					continue;
 				}
 				const int view = Lower(entry).find("_1stperson") != std::string::npos ? 1 : 0;
-				addFolder(view, config->value("priority", 0), dir, substitutes, [&](auto& a_groups, std::string& a_error) {
+				addFolder(view, config->value("priority", 0), dir, substitutes, &*config, [&](auto& a_groups, std::string& a_error) {
 					try {
 						return ParseOarConditions(config->value("conditions", json::array()), a_groups, a_error);
 					} catch (const std::exception& e) {
@@ -758,12 +805,15 @@ namespace Replacers
 							if (folders[f].view != view || it == folders[f].clips.end()) {
 								continue;
 							}
-							Source source{ .row = row, .view = view, .role = role, .folder = f, .file = it->second };
-							if (role == kRelease) {
-								source.duration = HkxDuration(ReadFile(source.file)).value_or(0.0f);
+							// one source per variant: a folder's sources are next to each other, Choose picks one of them
+							for (const auto& file : it->second) {
+								Source source{ .row = row, .view = view, .role = role, .folder = f, .file = file };
+								if (role == kRelease) {
+									source.duration = HkxDuration(ReadFile(source.file)).value_or(0.0f);
+								}
+								candidates[row][view][role].push_back(sources.size());
+								sources.push_back(std::move(source));
 							}
-							candidates[row][view][role].push_back(sources.size());
-							sources.push_back(std::move(source));
 						}
 					}
 				}
@@ -840,7 +890,7 @@ namespace Replacers
 					for (const auto& [target, clip] : kLocomotionClips) {
 						if (const auto it = folder.clips.find(std::string(clip)); it != folder.clips.end()) {
 							for (const auto dir : kLocomotionDirs) {
-								out.push_back({ .path = fs::path(name) / dir / target, .source = it->second });
+								out.push_back({ .path = fs::path(name) / dir / target, .source = it->second.front() });
 							}
 						}
 					}
@@ -986,16 +1036,22 @@ namespace Replacers
 					continue;
 				}
 				const auto& list = role == kLocomotion ? locomotionCandidates : candidates[*row][view][role];
-				for (const auto index : list) {
-					const auto folder = sources[index].folder;
+				for (std::size_t k = 0; k < list.size(); ++k) {
+					const auto folder = sources[list[k]].folder;
 					auto       it = results.find(folder);
 					if (it == results.end()) {
 						it = results.emplace(folder, Evaluate(folders[folder], context)).first;
 					}
 					if (it->second) {
+						// the folder's variants follow each other in the list: one of them at random, like OAR
+						std::size_t variants = 1;
+						while (k + variants < list.size() && sources[list[k + variants]].folder == folder) {
+							++variants;
+						}
+						const auto index = list[k + std::uniform_int_distribution<std::size_t>(0, variants - 1)(Rng())];
 						chosen[view * kRoleCount + role] = static_cast<int>(index) + 1;
 						logs::debug("Casting animation {} ({}): {} from {}", kRows[*row].folder, view ? "1st person"sv : "3rd person"sv,
-							kRoleNames[role], folders[folder].dir.string());
+							kRoleNames[role], (role == kLocomotion ? folders[folder].dir : sources[index].file).string());
 						break;
 					}
 				}
