@@ -28,4 +28,11 @@ namespace UI
 
 	// Texture of an icon atlas, loaded on first use (nullptr if it failed)
 	ImTextureID AtlasTexture(int a_atlas);
+
+	// The sidebar page names follow a language change: PageNamesOutdated() after it, UpdatePageNames() renames them on
+	// the next HUD frame (not while the framework draws its pages). Older framework versions can't rename pages
+	// (CanRenamePages() false), there the names change after a restart.
+	bool CanRenamePages();
+	void PageNamesOutdated();
+	void UpdatePageNames();
 }

@@ -330,6 +330,7 @@ namespace UI
 		std::scoped_lock lock(Config::Lock());
 
 		Input::Update();
+		UpdatePageNames();
 		Config::SaveIfDirty();
 		ItemIcons::Update();
 

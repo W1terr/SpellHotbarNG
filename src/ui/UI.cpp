@@ -30,6 +30,59 @@ namespace UI
 				Config::Save();
 			}
 		}
+
+		constexpr auto kSection = "Spell Hotbar NG";
+
+		// The sidebar pages: English name (the translation key), page, name it has in the framework now
+		struct SidebarPage
+		{
+			const char*                            english;
+			SKSEMenuFramework::Model::RenderFunction render;
+			std::string                            shown;
+		};
+		std::array pages{
+			SidebarPage{ "Bindings", RenderBindingsPage, {} },
+			SidebarPage{ "Bar Layout", RenderBarPage, {} },
+			SidebarPage{ "Profiles", RenderProfilesPage, {} },
+		};
+		std::atomic<bool> pageNamesOutdated{ false };
+
+		// exported by newer SKSE Menu Framework versions, not in its header we use: renames a section or page at runtime
+		using RenameSectionFunction = bool (*)(const char* a_path, const char* a_newName);
+
+		RenameSectionFunction RenameSection()
+		{
+			static const auto func = SKSEMenuFramework::Model::Internal::GetFunction<RenameSectionFunction>("RenameSection");
+			return func;
+		}
+	}
+
+	bool CanRenamePages()
+	{
+		return RenameSection() != nullptr;
+	}
+
+	void PageNamesOutdated()
+	{
+		pageNamesOutdated = true;
+	}
+
+	void UpdatePageNames()
+	{
+		if (!pageNamesOutdated.exchange(false) || !RenameSection()) {
+			return;
+		}
+		for (auto& page : pages) {
+			const std::string wanted = Lang::T(page.english);
+			if (wanted == page.shown) {
+				continue;
+			}
+			if (RenameSection()(std::format("{}/{}", kSection, page.shown).c_str(), wanted.c_str())) {
+				page.shown = wanted;
+			} else {
+				logs::warn("SKSE Menu Framework didn't rename the page \"{}\" to \"{}\"", page.shown, wanted);
+			}
+		}
 	}
 
 	bool IsBlockingWindowOpen()
@@ -45,11 +98,11 @@ namespace UI
 		}
 		logs::info("SKSE Menu Framework {} found", SKSEMenuFramework::GetMenuFrameworkVersion());
 
-		SKSEMenuFramework::SetSection("Spell Hotbar NG");
-		// page names are fixed once registered, a language change shows up after a restart
-		SKSEMenuFramework::AddSectionItem(Lang::T("Bindings"), RenderBindingsPage);
-		SKSEMenuFramework::AddSectionItem(Lang::T("Bar Layout"), RenderBarPage);
-		SKSEMenuFramework::AddSectionItem(Lang::T("Profiles"), RenderProfilesPage);
+		SKSEMenuFramework::SetSection(kSection);
+		for (auto& page : pages) {
+			page.shown = Lang::T(page.english);
+			SKSEMenuFramework::AddSectionItem(page.shown, page.render);
+		}
 
 		SKSEMenuFramework::AddHudElement(RenderHud);
 		SKSEMenuFramework::AddInputEvent(OnInput);

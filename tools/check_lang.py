@@ -38,7 +38,9 @@ def code_keys() -> list[str]:
             add(joined(m.group(1)))
             if m.group(2):
                 add(joined(m.group(2)))
-        for m in re.finditer(r"k(?:Anchor|Visibility|Hand|ExtraBarMode)Names\[\]\s*=\s*\{([^}]*)\}", src):
+        for m in re.finditer(rf"SidebarPage\{{\s*({LITERAL})", src):  # UI.cpp: the sidebar page names
+            add(json.loads(m.group(1)))
+        for m in re.finditer(r"k(?:Anchor|Visibility|ExtraBarMode)Names\[\]\s*=\s*\{([^}]*)\}", src):
             for lit in re.findall(LITERAL, m.group(1)):
                 add(json.loads(lit))
         for m in re.finditer(r"T\(alch->[^;]*;", src):

@@ -187,8 +187,11 @@ namespace UI
 			if (Combo("###language", &index, names.data(), static_cast<int>(names.size()))) {
 				Lang::Set(languages[index].id);
 				Config::MarkDirty();
+				PageNamesOutdated();
 			}
-			Help("The names of the pages on the left change after you restart the game.");
+			if (!CanRenamePages()) {
+				Help("The names of the pages on the left change after you restart the game.");
+			}
 
 			// without the right glyphs the framework draws "?" for every letter, so this is also shown in English
 			if (const auto glyphs = Lang::Current().glyphs) {
