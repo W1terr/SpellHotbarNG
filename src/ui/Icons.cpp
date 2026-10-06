@@ -15,6 +15,37 @@ namespace Icons
 		std::unordered_map<std::string, Icon>        namedNordic;
 		std::unordered_map<RE::FormID, Icon>         cache;      // resolved results incl. fallbacks
 
+		// icons the player picked: every atlas key (also of plugins that aren't loaded) and the choices file
+		std::unordered_map<std::string, Icon>        byKey;
+		std::vector<Choice>                          choices;
+		std::map<std::string, std::string>           customs;        // "Plugin.esp|0xID" of the form -> icon key
+		std::unordered_map<RE::FormID, std::string>  customByForm;   // the same for loaded forms
+
+		// UI pieces in the icon lists that aren't pictures for a spell
+		constexpr std::string_view kNotChoices[] = { "@BAR_EMPTY", "@BAR_OVERLAY", "@BAR_HIGHLIGHT", "@SCROLL_OVERLAY" };
+
+		std::filesystem::path CustomPath()
+		{
+			return Config::DataDir() / "custom_icons.json";
+		}
+
+		// "DESTRUCTION_FIRE_NOVICE" -> "Destruction Fire Novice"
+		std::string PrettyName(std::string_view a_name)
+		{
+			std::string out;
+			bool        wordStart = true;
+			for (const char c : a_name) {
+				if (c == '_') {
+					out += ' ';
+					wordStart = true;
+					continue;
+				}
+				out += wordStart ? c : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+				wordStart = false;
+			}
+			return out;
+		}
+
 		std::vector<std::string_view> Split(std::string_view a_line, char a_sep)
 		{
 			std::vector<std::string_view> out;
@@ -68,6 +99,7 @@ namespace Icons
 			const int  atlas = static_cast<int>(atlases.size());
 			const bool nordic = a_csv.stem() == "ui_nordic";
 			atlases.push_back(dds.string());
+			std::set<std::pair<float, float>> pictures;  // one choice per picture, several forms often share one
 
 			std::string line;
 			std::getline(file, line);  // header
@@ -82,6 +114,14 @@ namespace Icons
 				}
 				const Icon icon{ atlas, ToFloat(cols[1]), ToFloat(cols[2]), ToFloat(cols[3]), ToFloat(cols[4]) };
 				const auto key = cols[0];
+				if (!nordic) {
+					byKey[std::string(key)] = icon;
+					if (std::ranges::find(kNotChoices, key) == std::end(kNotChoices) && pictures.emplace(icon.u0, icon.v0).second) {
+						const auto name = cols.size() > 5 && !cols[5].empty() ? cols[5] : key;
+						choices.push_back({ std::string(key), key.starts_with('@') ? PrettyName(name) : std::string(name),
+							a_csv.stem().string(), icon });
+					}
+				}
 				if (key.starts_with('@')) {
 					(nordic ? namedNordic : named)[std::string(key.substr(1))] = icon;
 				} else if (key.starts_with("name:")) {
@@ -201,6 +241,10 @@ namespace Icons
 		named.clear();
 		namedNordic.clear();
 		cache.clear();
+		byKey.clear();
+		choices.clear();
+		customs.clear();
+		customByForm.clear();
 
 		const auto dir = Config::DataDir() / "icons";
 		std::error_code ec;
@@ -222,7 +266,23 @@ namespace Icons
 		for (const auto& list : lists) {
 			LoadAtlas(list);
 		}
-		logs::info("Icon database: {} atlases, {} forms, {} named", atlases.size(), byForm.size(), named.size());
+		logs::info("Icon database: {} atlases, {} forms, {} named, {} pictures", atlases.size(), byForm.size(), named.size(), choices.size());
+
+		if (const auto j = Config::ReadJsonFile(CustomPath()); j && j->contains("icons") && (*j)["icons"].is_object()) {
+			for (const auto& [formKey, iconKey] : (*j)["icons"].items()) {
+				if (iconKey.is_string()) {
+					customs[formKey] = iconKey.get<std::string>();
+				}
+			}
+		}
+		for (const auto& [formKey, iconKey] : customs) {
+			if (const auto form = Util::FromPluginKey(formKey)) {
+				customByForm[form] = iconKey;
+			}
+		}
+		if (!customs.empty()) {
+			logs::info("{} icon(s) picked by the player ({} for loaded forms)", customs.size(), customByForm.size());
+		}
 	}
 
 	const std::string& AtlasPath(int a_atlas)
@@ -246,7 +306,9 @@ namespace Icons
 			return it->second;
 		}
 		Icon icon;
-		if (const auto it = byForm.find(id); it != byForm.end()) {
+		if (const auto custom = customByForm.find(id); custom != customByForm.end() && byKey.contains(custom->second)) {
+			icon = byKey[custom->second];
+		} else if (const auto it = byForm.find(id); it != byForm.end()) {
 			icon = it->second;
 		} else if (ItemIcons::Supports(a_form)) {
 			// not cached: the model picture shows up once it's made
@@ -278,5 +340,45 @@ namespace Icons
 			return Named("UNKNOWN");
 		}
 		return {};
+	}
+
+	const std::vector<Choice>& Choices()
+	{
+		return choices;
+	}
+
+	bool HasOwnIcon(RE::TESForm* a_form)
+	{
+		return a_form && (byForm.contains(a_form->GetFormID()) || ItemIcons::Supports(a_form));
+	}
+
+	std::string CustomKey(RE::TESForm* a_form)
+	{
+		const auto it = a_form ? customByForm.find(a_form->GetFormID()) : customByForm.end();
+		return it != customByForm.end() ? it->second : std::string{};
+	}
+
+	void SetCustom(RE::TESForm* a_form, std::string_view a_key)
+	{
+		const auto formKey = a_form ? Util::ToPluginKey(a_form->GetFormID()) : std::string{};
+		if (formKey.empty()) {
+			return;  // made in game (0xFF...): no stable id to save it under
+		}
+		const auto id = a_form->GetFormID();
+		if (a_key.empty()) {
+			customs.erase(formKey);
+			customByForm.erase(id);
+		} else {
+			customs[formKey] = a_key;
+			customByForm[id] = a_key;
+		}
+		cache.erase(id);
+		logs::info("Icon of {} ({}): {}", a_form->GetName(), formKey, a_key.empty() ? "own icon" : a_key);
+
+		json icons = json::object();
+		for (const auto& [form, icon] : customs) {
+			icons[form] = icon;
+		}
+		Config::WriteJsonFile(CustomPath(), json{ { "version", 1 }, { "icons", icons } });
 	}
 }

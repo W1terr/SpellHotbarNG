@@ -43,6 +43,7 @@ namespace UI
 		std::array pages{
 			SidebarPage{ "Bindings", RenderBindingsPage, {} },
 			SidebarPage{ "Bar Layout", RenderBarPage, {} },
+			SidebarPage{ "Icons", RenderIconsPage, {} },
 			SidebarPage{ "Profiles", RenderProfilesPage, {} },
 		};
 		std::atomic<bool> pageNamesOutdated{ false };

@@ -24,6 +24,7 @@ namespace UI
 
 	void __stdcall RenderBarPage();
 	void __stdcall RenderBindingsPage();
+	void __stdcall RenderIconsPage();
 	void __stdcall RenderProfilesPage();
 
 	// Texture of an icon atlas, loaded on first use (nullptr if it failed)

@@ -16,16 +16,39 @@ namespace Icons
 		[[nodiscard]] bool Valid() const { return atlas >= 0 || texture; }
 	};
 
-	// Reads every atlas CSV. Needs the data handler, so call it on kDataLoaded.
+	// Reads every atlas CSV and the player's icon choices. Needs the data handler, so call it on kDataLoaded.
 	void Load();
 
 	const std::string& AtlasPath(int a_atlas);
 	int                AtlasCount();
 
-	// Icon for a form, falling back to a generic school / item icon. Weapons, armor, ammo and torches without an atlas
-	// icon get a picture of their model once it's made (ItemIcons).
+	// Icon for a form: the one the player picked, else its own, else a generic school / item icon. Weapons, armor,
+	// ammo and torches without an atlas icon get a picture of their model once it's made (ItemIcons).
 	Icon ForForm(RE::TESForm* a_form);
 
 	// UI and fallback icons: BAR_EMPTY, BAR_OVERLAY, BAR_HIGHLIGHT, UNKNOWN, ...
 	Icon Named(std::string_view a_name, bool a_nordic = false);
+
+	// ---- icons picked by the player (Icons page) ---------------------------------------------
+	// Saved in Data\SKSE\Plugins\SpellHotbarNG\custom_icons.json as "Plugin.esp|0xID" -> icon key, the same for every
+	// character. Render thread only.
+
+	// A picture the player can choose: every distinct atlas picture, also those of plugins that aren't loaded
+	struct Choice
+	{
+		std::string key;    // icon key: "Plugin.esp|0xID" or "@NAME"
+		std::string name;   // shown name
+		std::string group;  // atlas it comes from ("vanilla_spells", a spell pack...)
+		Icon        icon;
+	};
+	const std::vector<Choice>& Choices();
+
+	// The form has an icon of its own (from an icon list or its model), not a generic one
+	bool HasOwnIcon(RE::TESForm* a_form);
+
+	// Icon key the player picked for the form, empty if none
+	std::string CustomKey(RE::TESForm* a_form);
+
+	// Picks an icon (a Choice key) for the form; an empty key goes back to the form's own icon. Saves the file.
+	void SetCustom(RE::TESForm* a_form, std::string_view a_key);
 }

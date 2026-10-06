@@ -81,33 +81,33 @@ namespace Config
 		{
 			return UserDir() / "settings.json";
 		}
+	}
 
-		std::optional<json> ReadJsonFile(const std::filesystem::path& a_path)
-		{
-			std::ifstream file(a_path);
-			if (!file) {
-				return std::nullopt;
-			}
-			try {
-				return json::parse(file, nullptr, true, true);
-			} catch (const std::exception& e) {
-				logs::error("Failed to parse {}: {}", ToUtf8(a_path), e.what());
-				return std::nullopt;
-			}
+	std::optional<json> ReadJsonFile(const std::filesystem::path& a_path)
+	{
+		std::ifstream file(a_path);
+		if (!file) {
+			return std::nullopt;
 		}
+		try {
+			return json::parse(file, nullptr, true, true);
+		} catch (const std::exception& e) {
+			logs::error("Failed to parse {}: {}", ToUtf8(a_path), e.what());
+			return std::nullopt;
+		}
+	}
 
-		bool WriteJsonFile(const std::filesystem::path& a_path, const json& a_json)
-		{
-			std::error_code ec;
-			std::filesystem::create_directories(a_path.parent_path(), ec);
-			std::ofstream file(a_path, std::ios::trunc);
-			if (!file) {
-				logs::error("Failed to write {}", ToUtf8(a_path));
-				return false;
-			}
-			file << a_json.dump(2);
-			return true;
+	bool WriteJsonFile(const std::filesystem::path& a_path, const json& a_json)
+	{
+		std::error_code ec;
+		std::filesystem::create_directories(a_path.parent_path(), ec);
+		std::ofstream file(a_path, std::ios::trunc);
+		if (!file) {
+			logs::error("Failed to write {}", ToUtf8(a_path));
+			return false;
 		}
+		file << a_json.dump(2);
+		return true;
 	}
 
 	Settings& Get()

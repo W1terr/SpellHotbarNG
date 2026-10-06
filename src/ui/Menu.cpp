@@ -19,6 +19,7 @@ namespace UI
 			"After pressing a hotbar key" };
 		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
 		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
+		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };  // order of Hand
 
 		// Translated texts of a fixed list (combo items)
 		template <std::size_t N>
@@ -507,12 +508,16 @@ namespace UI
 							"Other items are removed that way. Clear removes anything."));
 		Spacing();
 
-		const auto page = static_cast<Page>(bindingsPage);
+		const auto  page = static_cast<Page>(bindingsPage);
 		const float iconSize = GetFrameHeight() * 1.3f;
-		if (BeginTable("##bindings", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
+		const auto  handNames = Translated(kHandNames);
+		const float handWidth = TextWidth({ handNames[0], handNames[1], handNames[2], handNames[3] }) + GetFrameHeight() +
+		                        GetStyle()->FramePadding.x * 2.0f;
+		if (BeginTable("##bindings", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
 			TableSetupColumn(T("Slot"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn(T("Key"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn(T("Spell / item"), ImGuiTableColumnFlags_WidthStretch, 0.0f);
+			TableSetupColumn(T("Hand"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableHeadersRow();
 
@@ -540,6 +545,18 @@ namespace UI
 					TextDisabled("%s", T("empty"));
 				}
 
+				// same choices as pressing the slot key again in the Magic menu (weapons: no "both")
+				TableNextColumn();
+				if (form && Bindings::UsesHand(form)) {
+					auto&     binding = Bindings::Get(page, slot);
+					int       hand = static_cast<int>(binding.hand);
+					const int count = form->Is(RE::FormType::Weapon) ? 3 : 4;
+					SetNextItemWidth(handWidth);
+					if (Combo("##hand", &hand, handNames.data(), count)) {
+						binding.hand = static_cast<Hand>(hand);
+					}
+				}
+
 				TableNextColumn();
 				if (form && SmallButton(Id("Clear", "clear").c_str())) {
 					Bindings::Clear(page, slot);
@@ -555,6 +572,227 @@ namespace UI
 			}
 		}
 		Help("What's on your bar is saved with your save game. Use Profiles to copy it to another character.");
+	}
+
+	namespace
+	{
+		// ---- icons --------------------------------------------------------------------------
+
+		char                                  formSearch[128]{};
+		char                                  iconSearch[128]{};
+		bool                                  onlyWithoutIcon{ true };
+		RE::FormID                            iconTarget{ 0 };  // form whose icon is being picked, 0 = none
+		std::vector<RE::FormID>               iconForms;        // the player's spells, powers, shouts and what's on the bar
+		std::chrono::steady_clock::time_point iconFormsScanned{};
+		std::vector<int>                      iconMatches;  // Icons::Choices() indices matching iconSearch
+		std::string                           iconMatchesFor{ "\x01" };
+
+		bool Contains(std::string_view a_text, std::string_view a_part)
+		{
+			const auto lower = [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); };
+			return a_part.empty() || !std::ranges::search(a_text, a_part, {}, lower, lower).empty();
+		}
+
+		// rescanned every few seconds: spells are learned while the menu isn't open
+		void RefreshIconForms()
+		{
+			const auto now = std::chrono::steady_clock::now();
+			if (now - iconFormsScanned < 2s) {
+				return;
+			}
+			iconFormsScanned = now;
+
+			std::vector<RE::TESForm*> forms;
+			const auto add = [&](RE::TESForm* a_form) {
+				if (a_form && std::ranges::find(forms, a_form) == forms.end()) {
+					forms.push_back(a_form);
+				}
+			};
+			const auto addList = [&](RE::TESSpellList::SpellData* a_list) {
+				if (!a_list) {
+					return;
+				}
+				for (std::uint32_t i = 0; a_list->spells && i < a_list->numSpells; ++i) {
+					add(a_list->spells[i]);
+				}
+				for (std::uint32_t i = 0; a_list->shouts && i < a_list->numShouts; ++i) {
+					add(a_list->shouts[i]);
+				}
+			};
+			const auto player = RE::PlayerCharacter::GetSingleton();
+			if (const auto base = player->GetActorBase()) {
+				addList(base->actorEffects);
+			}
+			if (const auto race = player->GetRace()) {
+				addList(race->actorEffects);
+			}
+			for (const auto spell : player->GetActorRuntimeData().addedSpells) {
+				add(spell);
+			}
+			std::erase_if(forms, [](RE::TESForm* a_form) { return !Bindings::IsBindable(a_form); });  // abilities, diseases...
+			for (int page = 0; page < kPageCount; ++page) {
+				for (int slot = 0; slot < kMaxSlots; ++slot) {
+					add(Bindings::GetForm(static_cast<Page>(page), slot));
+				}
+			}
+			add(Bindings::GetForm(Page::kMain, kReadySpellSlot));
+			add(Bindings::GetForm(Page::kMain, kReadyPotionSlot));
+
+			std::ranges::sort(forms, {}, [](RE::TESForm* a_form) { return FormLabel(a_form); });
+			iconForms.clear();
+			std::ranges::transform(forms, std::back_inserter(iconForms), &RE::TESForm::GetFormID);
+		}
+
+		// The icon grid only draws the rows in view: with spell packs there are well over a thousand pictures
+		void IconGrid(RE::TESForm* a_form)
+		{
+			const auto& choices = Icons::Choices();
+			if (iconMatchesFor != iconSearch) {
+				iconMatchesFor = iconSearch;
+				iconMatches.clear();
+				for (int i = 0; i < static_cast<int>(choices.size()); ++i) {
+					if (Contains(choices[i].name, iconSearch) || Contains(choices[i].group, iconSearch)) {
+						iconMatches.push_back(i);
+					}
+				}
+			}
+			if (iconMatches.empty()) {
+				TextDisabled("%s", T("Nothing found."));
+				return;
+			}
+
+			const auto  style = GetStyle();
+			const float size = GetFrameHeight() * 2.0f;
+			const float cell = size + style->FramePadding.x * 2.0f + style->ItemSpacing.x;
+			const int   columns = std::max(1, static_cast<int>((GetContentRegionAvail().x + style->ItemSpacing.x) / cell));
+			const int   rows = (static_cast<int>(iconMatches.size()) + columns - 1) / columns;
+			const auto  current = Icons::CustomKey(a_form);
+
+			const auto clipper = ImGuiListClipperManager::Create();
+			ImGuiListClipperManager::Begin(clipper, rows, size + style->FramePadding.y * 2.0f + style->ItemSpacing.y);
+			while (ImGuiListClipperManager::Step(clipper)) {
+				for (int row = clipper->DisplayStart; row < clipper->DisplayEnd; ++row) {
+					for (int column = 0; column < columns; ++column) {
+						const auto index = static_cast<std::size_t>(row * columns + column);
+						if (index >= iconMatches.size()) {
+							break;
+						}
+						const auto& choice = choices[iconMatches[index]];
+						if (column > 0) {
+							SameLine();
+						}
+						PushID(iconMatches[index]);
+						const auto texture = AtlasTexture(choice.icon.atlas);
+						const auto background = choice.key == current ? ImVec4{ kGold.x, kGold.y, kGold.z, 0.5f } : ImVec4{ 0, 0, 0, 0 };
+						if (!texture) {
+							Dummy(ImVec2{ size + style->FramePadding.x * 2.0f, size + style->FramePadding.y * 2.0f });
+						} else if (ImageButton("##pick", texture, ImVec2{ size, size }, ImVec2{ choice.icon.u0, choice.icon.v0 },
+									   ImVec2{ choice.icon.u1, choice.icon.v1 }, background)) {
+							Icons::SetCustom(a_form, choice.key);
+						}
+						if (IsItemHovered()) {
+							SetTooltip("%s\n%s", choice.name.c_str(), choice.group.c_str());
+						}
+						PopID();
+					}
+				}
+			}
+			ImGuiListClipperManager::End(clipper);
+			ImGuiListClipperManager::Destroy(clipper);
+		}
+	}
+
+	void __stdcall RenderIconsPage()
+	{
+		std::scoped_lock lock(Config::Lock());
+
+		TextWrapped("%s", T("Pick the picture a spell, power, shout or item shows on the bar. Your choices count for every character."));
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		if (!player || !player->Is3DLoaded()) {
+			TextWrapped("%s", T("Load a save to see your spells."));
+			return;
+		}
+		RefreshIconForms();
+		Spacing();
+
+		SetNextItemWidth(260.0f);
+		InputTextWithHint("##formSearch", T("Search"), formSearch, sizeof(formSearch));
+		SameLine();
+		Checkbox(Id("Only ones without their own icon", "onlyWithoutIcon").c_str(), &onlyWithoutIcon);
+		Help("Spells from other mods often have no icon of their own. The bar then shows a general one for their school.\n"
+			 "Off: everything you know or have on the bar, so you can change any icon.");
+
+		auto        target = iconTarget ? RE::TESForm::LookupByID(iconTarget) : nullptr;
+		const float iconSize = GetFrameHeight() * 1.3f;
+		if (BeginChild("##iconForms", ImVec2{ 0.0f, target ? GetContentRegionAvail().y * 0.4f : 0.0f }, ImGuiChildFlags_Border)) {
+			int shown = 0;
+			if (BeginTable("##forms", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
+				TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch, 0.0f);
+				TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+				for (const auto id : iconForms) {
+					const auto form = RE::TESForm::LookupByID(id);
+					const auto custom = form ? Icons::CustomKey(form) : std::string{};
+					if (!form || (onlyWithoutIcon && Icons::HasOwnIcon(form) && custom.empty()) || !Contains(FormLabel(form), formSearch)) {
+						continue;
+					}
+					++shown;
+					PushID(static_cast<int>(id));
+					TableNextRow();
+					if (form == target) {
+						TableSetBgColor(ImGuiTableBgTarget_RowBg1, IM_COL32(255, 210, 100, 60));
+					}
+					TableNextColumn();
+					IconImage(form, iconSize);
+					SameLine();
+					AlignTextToFramePadding();
+					Text("%s", FormLabel(form).c_str());
+					SameLine();
+					TextColored(kGrey, "%s", TypeName(form));
+					if (!custom.empty()) {
+						SameLine();
+						TextColored(kGold, "%s", T("your pick"));
+					}
+					TableNextColumn();
+					if (SmallButton(Id("Change", "change").c_str())) {
+						iconTarget = id;
+					}
+					if (!custom.empty()) {
+						SameLine();
+						if (SmallButton(Id("Reset", "reset").c_str())) {
+							Icons::SetCustom(form, {});
+						}
+					}
+					PopID();
+				}
+				EndTable();
+			}
+			if (shown == 0) {
+				TextDisabled("%s", T("Nothing found."));
+			}
+		}
+		EndChild();
+
+		target = iconTarget ? RE::TESForm::LookupByID(iconTarget) : nullptr;
+		if (!target) {
+			return;
+		}
+		SeparatorText(F("Icon for {}", FormLabel(target)).c_str());
+		IconImage(target, iconSize);
+		SameLine();
+		AlignTextToFramePadding();
+		TextDisabled("%s", T("Click an icon to use it."));
+		SameLine();
+		SetNextItemWidth(220.0f);
+		InputTextWithHint("##iconSearch", T("Search"), iconSearch, sizeof(iconSearch));
+		SameLine();
+		if (Button(Id("Done", "done").c_str())) {
+			iconTarget = 0;
+			return;
+		}
+		if (BeginChild("##iconGrid", ImVec2{ 0.0f, 0.0f }, ImGuiChildFlags_Border)) {
+			IconGrid(target);
+		}
+		EndChild();
 	}
 
 	void __stdcall RenderProfilesPage()

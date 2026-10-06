@@ -145,6 +145,10 @@ namespace Config
 	void FromJson(const json& a_json, Settings& a_settings);
 
 	const char* PageName(Page a_page);
+
+	// JSON files (comments allowed when reading); errors are logged
+	std::optional<json> ReadJsonFile(const std::filesystem::path& a_path);
+	bool                WriteJsonFile(const std::filesystem::path& a_path, const json& a_json);
 }
 
 namespace Profiles
