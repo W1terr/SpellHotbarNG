@@ -18,6 +18,7 @@ namespace UI
 		constexpr const char* kVisibilityNames[] = { "Always", "In combat", "Weapons / magic drawn", "In combat or drawn", "Never (only in menus)", "While sneaking",
 			"After pressing a hotbar key" };
 		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
+		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
 
 		// Translated texts of a fixed list (combo items)
 		template <std::size_t N>
@@ -372,6 +373,38 @@ namespace UI
 				EndTable();
 			}
 			TextDisabled("%s", F("Your bar has {} slots. You can change that in Bar Layout.", s.slotCount).c_str());
+
+			SeparatorText(T("Main bar key"));
+			Changed(Checkbox(Id("Open the bar with a key", "mainBarKeyEnabled").c_str(), &s.mainBarKeyEnabled));
+			Help("On: the bar stays hidden and the slot keys do what Skyrim normally does with them\n"
+				 "until you open the bar with this key.\n"
+				 "Binding in the Magic / Inventory menu works the same as always.\n"
+				 "In Oblivion style the Cast and Potion keys keep working while the bar is closed.");
+			if (s.mainBarKeyEnabled) {
+				Indent();
+				const auto mainModeNames = Translated(kMainBarModeNames);
+				int        mainMode = static_cast<int>(s.mainBarKeyMode);
+				SetNextItemWidth(TextWidth({ mainModeNames[0], mainModeNames[1], mainModeNames[2] }) + GetFrameHeight() +
+								 GetStyle()->FramePadding.x * 2.0f);
+				if (Combo("##mainBarMode", &mainMode, mainModeNames.data(), static_cast<int>(mainModeNames.size()))) {
+					s.mainBarKeyMode = static_cast<MainBarKeyMode>(mainMode);
+					Changed(true);
+				}
+				SameLine();
+				if (s.mainBarKeyMode == MainBarKeyMode::kCombo) {
+					KeyButton("mainBarModifier", &s.mainBarModifier);
+					SameLine();
+					AlignTextToFramePadding();
+					Text("+");
+					SameLine();
+				}
+				KeyButton("mainBarKey", &s.mainBarKey);
+				Help("press: one press of the key opens the bar, the next press closes it.\n"
+					 "key combo: the same, but only while you hold the first key, like Shift + H.\n"
+					 "hold: the bar is open while you hold the key, like holding Shift to use Shift + 1.\n"
+					 "The held key also keeps working in the game.");
+				Unindent();
+			}
 
 			SeparatorText(T("Extra bars"));
 			TextWrapped("%s", T("Hold a key to switch to another set of spells, like Shift + 1 instead of 1. "

@@ -47,6 +47,14 @@ enum class KeyMode : int
 	kOblivion   // pick the spell (or potion) for the cast key / potion key; powers and shouts are equipped
 };
 
+// How the main bar key opens the main bar
+enum class MainBarKeyMode : int
+{
+	kPress = 0,  // one press opens it, the next closes it
+	kCombo,      // the same, but only while the modifier key is held (Shift + H)
+	kHold        // open while the key is held
+};
+
 using RGBA = std::array<float, 4>;  // 0..1, the bar opacity multiplies the alpha
 
 struct BarColors
@@ -91,6 +99,10 @@ struct Settings
 	std::array<std::uint32_t, kModifierCount> modifierKeys{ 0x2A, 0x1D, 0x38 };
 	std::array<bool, kModifierCount>          modifierEnabled{ false, false, false };
 	std::array<bool, kModifierCount>          modifierToggle{ false, false, false };  // one press switches to the extra bar and back, instead of holding
+	bool                                      mainBarKeyEnabled{ false };  // the main bar (slot keys + bar) is closed until its key opens it
+	MainBarKeyMode                            mainBarKeyMode{ MainBarKeyMode::kPress };
+	std::uint32_t                             mainBarKey{ 0x23 };          // H
+	std::uint32_t                             mainBarModifier{ 0x2A };     // key combo mode: held while pressing mainBarKey (LShift)
 	bool                                      blockGameInput{ true };  // hotbar keys don't reach the game (vanilla hotkeys 1-8 etc.)
 	bool                                      onlyWhileSneaking{ false };  // outside of sneak the hotbar keys are the game's
 	bool                                      aimAtCrosshair{ true };      // aimed spells fly to the crosshair, not the combat target

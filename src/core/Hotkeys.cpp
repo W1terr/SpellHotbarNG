@@ -9,6 +9,7 @@ namespace Hotkeys
 	{
 		constexpr auto kSlotsSection = "Slots";
 		constexpr auto kExtraBarsSection = "Extra Bars";
+		constexpr auto kMainBarSection = "Main Bar";
 		constexpr auto kOblivionSection = "Oblivion Style";  // Hotkey Atlas shows sections as the Context column
 
 		std::filesystem::path Path()
@@ -58,6 +59,12 @@ namespace Hotkeys
 			if (a_key >= modifiers.data() && a_key < modifiers.data() + modifiers.size()) {
 				return Setting{ kExtraBarsSection, std::format("Extra_Bar_{}_Key", a_key - modifiers.data() + 1) };
 			}
+			if (a_key == &a_settings.mainBarModifier) {
+				return Setting{ kMainBarSection, "Open_Modifier_Key" };
+			}
+			if (a_key == &a_settings.mainBarKey) {
+				return Setting{ kMainBarSection, "Open_Key" };
+			}
 			if (a_key == &a_settings.castKey) {
 				return Setting{ kOblivionSection, "Cast_Key" };
 			}
@@ -68,7 +75,7 @@ namespace Hotkeys
 		}
 
 		// Calls a_func with every key member, in file order. a_inUse: only the keys that do something
-		// now (the bar's slots, extra bars that are on, the Oblivion style keys in that mode).
+		// now (the bar's slots, extra bars that are on, the main bar key if used, the Oblivion style keys in that mode).
 		template <class S, class Func>
 		void ForEachKey(S& a_settings, bool a_inUse, Func a_func)
 		{
@@ -81,6 +88,12 @@ namespace Hotkeys
 				if (!a_inUse || a_settings.modifierEnabled[i]) {
 					a_func(a_settings.modifierKeys[i]);
 				}
+			}
+			if (!a_inUse || (a_settings.mainBarKeyEnabled && a_settings.mainBarKeyMode == MainBarKeyMode::kCombo)) {
+				a_func(a_settings.mainBarModifier);
+			}
+			if (!a_inUse || a_settings.mainBarKeyEnabled) {
+				a_func(a_settings.mainBarKey);
 			}
 			if (!a_inUse || a_settings.keyMode == KeyMode::kOblivion) {
 				a_func(a_settings.castKey);
@@ -312,7 +325,8 @@ namespace Hotkeys
 			"; or here while the game is closed.\n"
 			"; Hotkey tools such as Hotkey Atlas read this file to list and remap the keys.\n"
 			"; Codes: keyboard scan codes (DirectInput), 256-265 mouse buttons, 266-281 controller buttons, 0 = no key.\n"
-			"; Only the keys in use are listed: the bar's slots, extra bars that are on, the Oblivion style keys.\n";
+			"; Only the keys in use are listed: the bar's slots, extra bars that are on, the main bar key,\n"
+			"; the Oblivion style keys.\n";
 		const char* section = nullptr;
 		ForEachKey(a_settings, true, [&](const std::uint32_t& a_key) {
 			const auto setting = SettingOf(a_settings, &a_key);

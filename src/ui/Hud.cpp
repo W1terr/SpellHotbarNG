@@ -129,8 +129,8 @@ namespace UI
 
 				const bool combat = player->IsInCombat();
 				const bool drawn = player->AsActorState()->IsWeaponDrawn();
-				// the hotbar is off in beast form: the bar fades out like with "Never"
-				switch (Util::InBeastForm() ? Visibility::kNever : settings.visibility) {
+				// the hotbar is off in beast form and while riding: the bar fades out like with "Never"
+				switch (Util::HotbarOff() ? Visibility::kNever : settings.visibility) {
 				case Visibility::kNever:
 					ctx.visible = false;
 					break;
@@ -349,8 +349,10 @@ namespace UI
 		const auto  page = Input::CurrentPage();
 		const bool  oblivion = settings.keyMode == KeyMode::kOblivion;
 		// Oblivion style: the main bar only shows up for a moment after a slot key (picking or binding), always in the
-		// settings preview; extra bar keys don't bring it up
-		const bool wantMain = !oblivion || !settings.readyHideMainBar || Input::SinceSlotKey() < kPeekTime;
+		// settings preview; extra bar keys don't bring it up. With the main bar key it only shows while opened (and
+		// while binding).
+		const bool wantMain = (!oblivion || !settings.readyHideMainBar || Input::SinceSlotKey() < kPeekTime) &&
+		                      (ctx->bindMenu || Input::MainBarOpen());
 		if (ctx->preview) {
 			mainShown = 1.0f;
 		} else {

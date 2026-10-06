@@ -165,6 +165,10 @@ namespace Config
 		j["modifierKeys"] = s.modifierKeys;
 		j["modifierEnabled"] = s.modifierEnabled;
 		j["modifierToggle"] = s.modifierToggle;
+		j["mainBarKeyEnabled"] = s.mainBarKeyEnabled;
+		j["mainBarKeyMode"] = static_cast<int>(s.mainBarKeyMode);
+		j["mainBarKey"] = s.mainBarKey;
+		j["mainBarModifier"] = s.mainBarModifier;
 		j["blockGameInput"] = s.blockGameInput;
 		j["onlyWhileSneaking"] = s.onlyWhileSneaking;
 		j["aimAtCrosshair"] = s.aimAtCrosshair;
@@ -215,6 +219,10 @@ namespace Config
 		ReadArray(j, "modifierKeys", s.modifierKeys);
 		ReadArray(j, "modifierEnabled", s.modifierEnabled);
 		ReadArray(j, "modifierToggle", s.modifierToggle);
+		Read(j, "mainBarKeyEnabled", s.mainBarKeyEnabled);
+		Read(j, "mainBarKeyMode", s.mainBarKeyMode);
+		Read(j, "mainBarKey", s.mainBarKey);
+		Read(j, "mainBarModifier", s.mainBarModifier);
 		Read(j, "blockGameInput", s.blockGameInput);
 		Read(j, "onlyWhileSneaking", s.onlyWhileSneaking);
 		Read(j, "aimAtCrosshair", s.aimAtCrosshair);
@@ -244,6 +252,7 @@ namespace Config
 		s.keyPressShowTime = std::clamp(s.keyPressShowTime, 0.5f, 10.0f);
 		s.fadedOpacity = std::clamp(s.fadedOpacity, 0.0f, 1.0f);
 		s.keyMode = static_cast<KeyMode>(std::clamp(static_cast<int>(s.keyMode), 0, 2));
+		s.mainBarKeyMode = static_cast<MainBarKeyMode>(std::clamp(static_cast<int>(s.mainBarKeyMode), 0, 2));
 		s.readyAnchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.readyAnchor), 0, 8));
 		for (const auto& [key, member] : kColorFields) {
 			for (auto& channel : s.colors.*member) {

@@ -122,4 +122,16 @@ namespace Util
 		}
 		return race == werewolf || race == vampireLord;
 	}
+
+	bool OnMount()
+	{
+		// the rider keeps the mount interaction from getting on until the end of getting off
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		return player && player->IsOnMount();
+	}
+
+	bool HotbarOff()
+	{
+		return InBeastForm() || OnMount();
+	}
 }

@@ -11,4 +11,11 @@ namespace Util
 
 	// The player is a werewolf / vampire lord (or another transformation): the hotbar is off meanwhile
 	bool InBeastForm();
+
+	// The player rides a horse (or a dragon), also while getting on / off: the hotbar is off meanwhile
+	bool OnMount();
+
+	// Beast form or riding: hotbar keys go to the game, the bar fades out, magic can't be used. Binding in menus
+	// stays possible while riding.
+	bool HotbarOff();
 }

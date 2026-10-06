@@ -76,9 +76,9 @@ namespace Actions
 
 		constexpr auto kDrawingOrSheathing = "drawing / sheathing";
 
-		// Why magic can't be used right now, nullptr if it can: no magic while jumping / falling, in beast form, swimming
-		// (vanilla can't cast while swimming either), attacking (weapon swings incl. power attacks, bashes, drawing a bow)
-		// or drawing / sheathing (a running cast stops when one of them starts)
+		// Why magic can't be used right now, nullptr if it can: no magic while jumping / falling, in beast form, riding,
+		// swimming (vanilla can't cast while swimming either), attacking (weapon swings incl. power attacks, bashes,
+		// drawing a bow) or drawing / sheathing (a running cast stops when one of them starts)
 		const char* CastBlocker()
 		{
 			const auto player = Player();
@@ -90,6 +90,9 @@ namespace Actions
 			}
 			if (Util::InBeastForm()) {
 				return "in beast form";
+			}
+			if (Util::OnMount()) {
+				return "riding";
 			}
 			const auto state = player->AsActorState();
 			if (state->IsSwimming()) {

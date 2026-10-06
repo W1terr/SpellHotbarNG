@@ -23,6 +23,10 @@ namespace Input
 	// The current page comes from a press-mode extra bar key (nothing has to be held for it)
 	bool PageSwitched();
 
+	// With the main bar key option: the main bar was opened with its key (or combo), or the key is held in hold mode.
+	// Without it always true. Binding in menus works either way.
+	bool MainBarOpen();
+
 	// Seconds since a slot key (not the Oblivion style cast / potion key) was last pressed (also to bind), 0 while one is
 	// held. Large if none was pressed yet.
 	float SinceSlotKey();

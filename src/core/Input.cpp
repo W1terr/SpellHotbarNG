@@ -30,6 +30,10 @@ namespace Input
 		std::chrono::steady_clock::time_point lastHotbarKey{};  // slot keys and the Oblivion style cast / potion keys
 		std::array<bool, kModifierCount> modifierDown{};
 		int                              switchedBar{ -1 };  // extra bar picked with a press-mode key, -1 = main bar
+		bool                             mainBarOpen{ false };      // opened with the main bar key (press mode)
+		bool                             mainBarKeyDown{ false };
+		bool                             mainBarModifierDown{ false };
+		bool                             mainBarKeyUsed{ false };  // the main bar key's press opened / closed the bar: its release is ours too
 		std::uint32_t*                   captureTarget{ nullptr };
 
 		// Keyboard modifiers can miss their release (alt-tab), so double check them with the OS
@@ -72,7 +76,50 @@ namespace Input
 			if (InBindMenu()) {
 				return Mode::kBind;
 			}
-			return GameplayActive() && SneakAllows() && !Util::InBeastForm() ? Mode::kGameplay : Mode::kNone;
+			return GameplayActive() && SneakAllows() && !Util::HotbarOff() ? Mode::kGameplay : Mode::kNone;
+		}
+
+		// Slot keys of the main bar (and extra bar switching) do something: always while binding, in gameplay only
+		// while the main bar is open
+		bool MainBarUsable(Mode a_mode)
+		{
+			return a_mode == Mode::kBind || (a_mode == Mode::kGameplay && MainBarOpen());
+		}
+
+		// The main bar key opens / closes the main bar (press mode; key combo mode only while its modifier is held) or
+		// keeps it open while held (hold mode, the key also reaches the game like extra bar keys). true = swallow the event.
+		bool OnMainBarKey(const RE::ButtonEvent* a_button, std::uint32_t a_key)
+		{
+			const auto& settings = Config::Get();
+			if (!settings.mainBarKeyEnabled || settings.mainBarKey == Keys::kNone) {
+				return false;
+			}
+			const bool pressed = a_button->IsPressed();
+			if (a_key == settings.mainBarModifier) {
+				mainBarModifierDown = pressed;
+			}
+			if (a_key != settings.mainBarKey) {
+				return false;
+			}
+			mainBarKeyDown = pressed;
+			if (settings.mainBarKeyMode == MainBarKeyMode::kHold) {
+				return false;
+			}
+			if (a_button->IsDown()) {
+				const bool modifierHeld = settings.mainBarKeyMode != MainBarKeyMode::kCombo || settings.mainBarModifier == Keys::kNone ||
+				                          mainBarModifierDown;
+				mainBarKeyUsed = modifierHeld && CurrentMode() == Mode::kGameplay;
+				if (mainBarKeyUsed) {
+					mainBarOpen = !mainBarOpen;
+					logs::info("Main bar {} ({})", mainBarOpen ? "opened" : "closed", Keys::Name(a_key));
+				}
+				return mainBarKeyUsed;
+			}
+			const bool used = mainBarKeyUsed;
+			if (!pressed) {
+				mainBarKeyUsed = false;
+			}
+			return used;
 		}
 
 		// Extra bar whose key is held (hold mode); they win over a bar picked with a press
@@ -205,6 +252,10 @@ namespace Input
 			return true;
 		}
 
+		if (OnMainBarKey(button, key)) {
+			return true;
+		}
+
 		const bool pressed = button->IsPressed();
 
 		// extra bar keys always reach the game too
@@ -214,7 +265,7 @@ namespace Input
 			}
 			if (!settings.modifierToggle[i]) {
 				modifierDown[i] = pressed;
-			} else if (button->IsDown() && CurrentMode() != Mode::kNone) {
+			} else if (button->IsDown() && MainBarUsable(CurrentMode())) {
 				// press mode: switches to this extra bar, or back to the main bar if it is the current one
 				switchedBar = SwitchedBar() == i ? -1 : i;
 			}
@@ -236,8 +287,9 @@ namespace Input
 			return wasOurs && (state.mode == Mode::kBind || block);
 		}
 
+		// a closed main bar leaves its slot keys to the game; the Oblivion style cast / potion keys keep working
 		const auto mode = CurrentMode();
-		if (mode == Mode::kNone) {
+		if (mode == Mode::kNone || (!IsReadySlot(slot) && !MainBarUsable(mode))) {
 			return false;
 		}
 
@@ -251,12 +303,16 @@ namespace Input
 	{
 		std::scoped_lock lock(Config::Lock());
 		const auto&      settings = Config::Get();
-		for (int i = 0; i < kModifierCount; ++i) {
-			const auto key = settings.modifierKeys[i];
-			if (modifierDown[i] && key != Keys::kNone && key < Keys::kMouseOffset && !KeyboardKeyDown(key)) {
-				modifierDown[i] = false;
+		const auto       missedRelease = [](bool& a_down, std::uint32_t a_key) {
+			if (a_down && a_key != Keys::kNone && a_key < Keys::kMouseOffset && !KeyboardKeyDown(a_key)) {
+				a_down = false;
 			}
+		};
+		for (int i = 0; i < kModifierCount; ++i) {
+			missedRelease(modifierDown[i], settings.modifierKeys[i]);
 		}
+		missedRelease(mainBarKeyDown, settings.mainBarKey);
+		missedRelease(mainBarModifierDown, settings.mainBarModifier);
 	}
 
 	void Reset()
@@ -265,6 +321,19 @@ namespace Input
 		slotStates.fill({});
 		modifierDown.fill(false);
 		switchedBar = -1;
+		mainBarOpen = false;
+		mainBarKeyDown = false;
+		mainBarModifierDown = false;
+		mainBarKeyUsed = false;
+	}
+
+	bool MainBarOpen()
+	{
+		const auto& settings = Config::Get();
+		if (!settings.mainBarKeyEnabled || settings.mainBarKey == Keys::kNone) {
+			return true;
+		}
+		return settings.mainBarKeyMode == MainBarKeyMode::kHold ? mainBarKeyDown : mainBarOpen;
 	}
 
 	void BeginCapture(std::uint32_t* a_target)
