@@ -215,7 +215,9 @@ def spell_list_entries(csv_paths: list[Path], folders: list[Path]) -> list[tuple
     return entries
 
 
-def named_entries(names: list[str], folders: list[Path], no_mask: set[str] = frozenset(), key_prefix: str = "@"):
+def named_entries(names: list[str], folders: list[Path], no_mask: set[str] = frozenset(), key_prefix: str = "@",
+                  white: set[str] = frozenset()):
+    """white: icons turned into a white shape (alpha kept) that the HUD fills with a color"""
     entries = []
     for icon in names:
         path = find_image(image_name(icon), folders)
@@ -228,6 +230,9 @@ def named_entries(names: list[str], folders: list[Path], no_mask: set[str] = fro
             overlay = parts[0].lower()
         shout = "DS" if "shout" in image_name(icon) else None
         img = make_icon(path, overlay, shout, None, mask=icon not in no_mask)
+        if icon in white:
+            full = Image.new("L", img.size, 255)
+            img = Image.merge("RGBA", (full, full, full, img.convert("RGBA").getchannel("A")))
         key = f"{key_prefix}{icon}"
         entries.append((key, icon, img, key))
     return entries
@@ -339,7 +344,7 @@ def main():
                     core_icons / "ui")
         print("ui nordic")
         build_atlas(named_entries(["BAR_EMPTY", "BAR_OVERLAY"], [SRC / "icons/nordic_ui"],
-                                  no_mask={"BAR_EMPTY", "BAR_OVERLAY"}), core_icons / "ui_nordic")
+                                  no_mask={"BAR_EMPTY", "BAR_OVERLAY"}, white={"BAR_EMPTY"}), core_icons / "ui_nordic")
 
         print("vanilla spells")
         schools = ["alteration", "destruction", "restoration", "illusion", "conjuration"]

@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 #include "ui/Framework.h"
+#include "ui/InventoryIcons.h"
 
 namespace ItemIcons
 {
@@ -15,6 +16,7 @@ namespace ItemIcons
 		constexpr int   kLoadTimeout = 300;   // frames a model may take to load
 		constexpr int   kSettleFrames = 2;    // frames after loading before the picture (transforms, textures)
 		constexpr int   kEmptyRetries = 5;    // captures without any model pixels before giving up
+		constexpr int   kMenuIconSize = 256;  // pixels of a SkyUI icon (its movie's stage is 128 x 128)
 
 		constexpr const char* kMenuName = "SpellHotbarNG_IconCapture";
 
@@ -48,6 +50,12 @@ namespace ItemIcons
 		std::unordered_map<RE::FormID, std::string>  modelOf;   // form -> model key ("" = no model)
 		std::deque<std::pair<std::string, RE::FormID>> queue;
 		std::optional<Job>                           job;
+		std::unordered_map<std::string, Entry>       byLabel;     // SkyUI icon frame label -> icon
+		std::deque<std::string>                      labelQueue;
+		std::unordered_map<std::string, int>         labelEmpty;  // empty pictures of a label so far
+		RE::GPtr<RE::GFxMovieView>                   iconMovie;   // SkyUI's icon movie, loaded by the capture menu
+		const RE::IMenu*                             iconMovieMenu{ nullptr };
+		bool                                         iconMovieFailed{ false };
 		std::chrono::steady_clock::time_point        menuRequestTime{};  // last show / hide message
 
 		std::filesystem::path Dir()
@@ -355,9 +363,11 @@ namespace ItemIcons
 			}
 		};
 
-		// Draws the 3D view twice into the bound render target (over black, over white), reads both back and puts the
-		// frame back the way it was. Runs inside the UI render pass.
-		CaptureResult Capture(RE::Inventory3DManager* a_inv, const std::string& a_path)
+		// Draws twice into the bound render target (over black, over white), reads both back and puts the frame back
+		// the way it was. Runs inside the UI render pass. a_draw(width, height) draws, a_process(black, white, reader,
+		// width, height) turns the two pictures into the icon.
+		template <class Draw, class Process>
+		CaptureResult CaptureTwice(Draw&& a_draw, Process&& a_process)
 		{
 			const auto renderer = RE::BSGraphics::Renderer::GetRendererDataSingleton();
 			const auto context = renderer ? renderer->context : nullptr;
@@ -412,10 +422,10 @@ namespace ItemIcons
 			constexpr float kWhite[4]{ 1.0f, 1.0f, 1.0f, 0.0f };
 			context->CopyResource(saved.p, target.p);
 			context->ClearRenderTargetView(rtv.p, kBlack);
-			a_inv->Render();
+			a_draw(static_cast<int>(desc.width), static_cast<int>(desc.height));
 			context->CopyResource(black.p, target.p);
 			context->ClearRenderTargetView(rtv.p, kWhite);
-			a_inv->Render();
+			a_draw(static_cast<int>(desc.width), static_cast<int>(desc.height));
 			context->CopyResource(white.p, target.p);
 			context->CopyResource(target.p, saved.p);  // nothing of this ever reaches the screen
 
@@ -427,12 +437,105 @@ namespace ItemIcons
 				context->Unmap(black.p, 0);
 				return CaptureResult::kFailed;
 			}
-			const auto result = Process({ static_cast<const std::uint8_t*>(mappedBlack.data), mappedBlack.rowPitch },
-				{ static_cast<const std::uint8_t*>(mappedWhite.data), mappedWhite.rowPitch }, reader, static_cast<int>(desc.width),
-				static_cast<int>(desc.height), a_path);
+			const auto result = a_process(Mapped{ static_cast<const std::uint8_t*>(mappedBlack.data), mappedBlack.rowPitch },
+				Mapped{ static_cast<const std::uint8_t*>(mappedWhite.data), mappedWhite.rowPitch }, reader, static_cast<int>(desc.width),
+				static_cast<int>(desc.height));
 			context->Unmap(black.p, 0);
 			context->Unmap(white.p, 0);
 			return result;
+		}
+
+		// The 3D view's model, cropped to it
+		CaptureResult Capture(RE::Inventory3DManager* a_inv, const std::string& a_path)
+		{
+			return CaptureTwice([&](int, int) { a_inv->Render(); },
+				[&](const Mapped& a_black, const Mapped& a_white, const Reader& a_reader, int a_width, int a_height) {
+					return Process(a_black, a_white, a_reader, a_width, a_height, a_path);
+				});
+		}
+
+		// ---- SkyUI icons -----------------------------------------------------------------------------
+
+		// The icon's square in the top left corner: only its transparency counts, SkyUI paints icons in one color
+		CaptureResult ProcessMenuIcon(const Mapped& a_black, const Mapped& a_white, const Reader& a_reader, const std::string& a_path)
+		{
+			std::vector<std::uint8_t> bgra(static_cast<std::size_t>(kMenuIconSize) * kMenuIconSize * 4, 0);
+			bool                      any = false;
+			for (int y = 0; y < kMenuIconSize; ++y) {
+				for (int x = 0; x < kMenuIconSize; ++x) {
+					float b[3], w[3];
+					a_reader.Read(a_black.Row(y), x, b);
+					a_reader.Read(a_white.Row(y), x, w);
+					const float alpha = std::clamp(1.0f - ((w[0] - b[0]) + (w[1] - b[1]) + (w[2] - b[2])) / 3.0f, 0.0f, 1.0f);
+					auto*       out = &bgra[(static_cast<std::size_t>(y) * kMenuIconSize + x) * 4];
+					out[0] = out[1] = out[2] = 255;
+					out[3] = static_cast<std::uint8_t>(alpha * 255.0f + 0.5f);
+					any = any || alpha > kAlphaCut;
+				}
+			}
+			if (!any) {
+				return CaptureResult::kEmpty;
+			}
+			return WriteDDS(a_path, bgra, kMenuIconSize) ? CaptureResult::kSaved : CaptureResult::kFailed;
+		}
+
+		std::string MenuIconFile(const std::string& a_label)
+		{
+			std::string name;
+			for (const char c : a_label) {
+				name += std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
+			}
+			return (Dir() / "skyui" / std::format("{}.dds", name)).string();
+		}
+
+		// One queued SkyUI icon per frame
+		void DrawNextMenuIcon(const RE::IMenu* a_menu)
+		{
+			if (labelQueue.empty()) {
+				return;
+			}
+			const auto label = labelQueue.front();
+			labelQueue.pop_front();
+			auto& entry = byLabel[label];
+
+			if (iconMovieMenu != a_menu) {
+				// the movie belongs to the menu instance that loaded it
+				iconMovie.reset();
+				iconMovieMenu = a_menu;
+				const auto& path = InventoryIcons::MoviePath();
+				const auto  scaleform = RE::BSScaleformManager::GetSingleton();
+				iconMovieFailed = path.empty() || !scaleform ||
+				                  !scaleform->LoadMovie(const_cast<RE::IMenu*>(a_menu), iconMovie, path.c_str(), RE::GFxMovieView::ScaleModeType::kShowAll, 0.0f) ||
+				                  !iconMovie;
+				if (iconMovieFailed) {
+					logs::warn("Inventory icons: could not load Interface/{}.swf", path);
+				}
+			}
+			if (iconMovieFailed || !iconMovie->GotoLabeledFrame(label.c_str())) {
+				logs::warn("Inventory icons: no icon '{}'", label);
+				entry.state = State::kFailed;
+				return;
+			}
+			iconMovie->Advance(0.0f, 0);
+
+			entry.path = MenuIconFile(label);
+			const auto result = CaptureTwice(
+				[&](int a_width, int a_height) {
+					iconMovie->SetViewport(a_width, a_height, 0, 0, kMenuIconSize, kMenuIconSize);
+					iconMovie->Display();
+				},
+				[&](const Mapped& a_black, const Mapped& a_white, const Reader& a_reader, int a_width, int a_height) {
+					return a_width < kMenuIconSize || a_height < kMenuIconSize ? CaptureResult::kFailed :
+					                                                             ProcessMenuIcon(a_black, a_white, a_reader, entry.path);
+				});
+			if (result == CaptureResult::kEmpty && ++labelEmpty[label] < kEmptyRetries) {
+				labelQueue.push_back(label);  // nothing drawn yet, try again next frame
+				return;
+			}
+			entry.state = result == CaptureResult::kSaved ? State::kReady : State::kFailed;
+			if (entry.state == State::kFailed) {
+				logs::warn("Inventory icons: could not draw '{}'", label);
+			}
 		}
 
 		void EndOwnScene(RE::Inventory3DManager* a_inv)
@@ -457,9 +560,11 @@ namespace ItemIcons
 		}
 
 		// Runs in the capture menu's PostDisplay: the UI render pass, where the game draws the inventory's 3D item
-		void OnPostDisplay()
+		void OnPostDisplay(const RE::IMenu* a_menu)
 		{
 			std::scoped_lock guard(lock);
+			DrawNextMenuIcon(a_menu);
+
 			const auto inv = RE::Inventory3DManager::GetSingleton();
 			if (!inv) {
 				return;
@@ -574,7 +679,16 @@ namespace ItemIcons
 				depthPriority = 0;
 			}
 
-			void PostDisplay() override { OnPostDisplay(); }
+			~CaptureMenu() override
+			{
+				std::scoped_lock guard(lock);
+				if (iconMovieMenu == this) {
+					iconMovie.reset();
+					iconMovieMenu = nullptr;
+				}
+			}
+
+			void PostDisplay() override { OnPostDisplay(this); }
 
 			static RE::IMenu* Create() { return new CaptureMenu(); }
 		};
@@ -651,10 +765,38 @@ namespace ItemIcons
 		return nullptr;
 	}
 
+	void* MenuIcon(const std::string& a_label, bool& a_pending)
+	{
+		std::scoped_lock guard(lock);
+		auto&            entry = byLabel[a_label];
+		switch (entry.state) {
+		case State::kUnknown:
+			entry.state = State::kQueued;
+			labelQueue.push_back(a_label);
+			a_pending = true;
+			return nullptr;
+		case State::kQueued:
+			a_pending = true;
+			return nullptr;
+		case State::kFailed:
+			return nullptr;
+		default:
+			break;
+		}
+		if (!entry.texture) {
+			entry.texture = SKSEMenuFramework::LoadTexture(entry.path);
+			if (!entry.texture) {
+				logs::warn("Inventory icons: could not load {}", entry.path);
+				entry.state = State::kFailed;
+			}
+		}
+		return entry.texture;
+	}
+
 	void Update()
 	{
 		std::scoped_lock guard(lock);
-		const bool wanted = !queue.empty() || job.has_value();
+		const bool wanted = !queue.empty() || job.has_value() || !labelQueue.empty();
 		const bool open = MenuOpen(kMenuName);
 		if (open == wanted || MenuOpen(RE::LoadingMenu::MENU_NAME) || MenuOpen(RE::MainMenu::MENU_NAME)) {
 			return;

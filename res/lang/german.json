@@ -89,7 +89,7 @@
   "Frame": "Rahmen",
   "Tint of the slot border. White keeps the original look.": "Färbung des Platzrahmens. Weiß behält das Originalaussehen.",
   "Slot background": "Platzhintergrund",
-  "Tint of the empty slot texture. White keeps the original look.": "Färbung der leeren Platztextur. Weiß behält das Originalaussehen.",
+  "Color behind the icons. Black is the original look.": "Farbe hinter den Symbolen. Schwarz ist das ursprüngliche Aussehen.",
   "Key labels": "Tastennamen",
   "Text": "Text",
   "Item counts, cooldown seconds and the extra bar's key above the bar.": "Anzahl, Abklingzeit-Sekunden und die Taste der Zusatzleiste über der Leiste.",
@@ -179,5 +179,14 @@
   "Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).": "Profile werden in {} gespeichert (mit Mod Organizer 2: im Ordner overwrite).",
   "Press a slot key to bind {}": "Drücke eine Platztaste, um {} zu belegen",
   "Select a spell or item, then press a slot key": "Wähle einen Zauber oder Gegenstand und drücke eine Platztaste",
-  "[holding {}]": "[{} gehalten]"
+  "[holding {}]": "[{} gehalten]",
+  "Default ({})": "Standard ({})",
+  "On key press": "Beim Drücken",
+  "On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do.": "Beim Drücken: Was die Platztaste mit diesem Zauber, dieser Kraft oder diesem Schrei macht. Standard folgt Tasten > Was die Platztasten tun.",
+  "Icon style": "Symbolstil",
+  "Spell Hotbar icons": "Spell-Hotbar-Symbole",
+  "Inventory icons for items": "Inventarsymbole für Gegenstände",
+  "Inventory icons for everything": "Inventarsymbole für alles",
+  "Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n(also those of an icon replacer you have installed).\nItems: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\nEverything: spells, scrolls, powers and shouts get SkyUI's icons too.\nAn icon you pick below is always used.": "Inventarsymbole sind die, die SkyUI in deinem Inventar, den Favoriten und im Magiemenü zeigt\n(auch die eines installierten Symbol-Ersatzes).\nGegenstände: Waffen, Rüstung, Munition, Fackeln, Tränke und Essen. Zauber, Schriftrollen, Kräfte und Schreie behalten ihre Symbole.\nAlles: Auch Zauber, Schriftrollen, Kräfte und Schreie bekommen die Symbole von SkyUI.\nEin Symbol, das du unten auswählst, wird immer verwendet.",
+  "SkyUI is not installed, so the bar keeps its own icons.": "SkyUI ist nicht installiert, daher behält die Leiste ihre eigenen Symbole."
 }

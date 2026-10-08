@@ -749,9 +749,9 @@ namespace Actions
 		const auto binding = Bindings::Get(a_page, a_slot);
 
 		// slot keys in Equip / Oblivion style mode equip or pick magic instead of casting it (the cast key and potion
-		// key of Oblivion style use their pseudo slots normally)
+		// key of Oblivion style use their pseudo slots normally). A slot can have its own mode for its magic.
 		if (!IsReadySlot(a_slot)) {
-			switch (Config::Get().keyMode) {
+			switch (Bindings::UsesMode(form) ? Bindings::ModeOf(binding) : Config::Get().keyMode) {
 			case KeyMode::kEquip:
 				if (EquipMagic(form, binding.hand)) {
 					return;

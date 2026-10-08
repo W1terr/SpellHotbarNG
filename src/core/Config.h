@@ -47,6 +47,14 @@ enum class KeyMode : int
 	kOblivion   // pick the spell (or potion) for the cast key / potion key; powers and shouts are equipped
 };
 
+// Which pictures the bar shows
+enum class IconStyle : int
+{
+	kOwn = 0,         // the hotbar's icon lists (spell packs), item models
+	kInventoryItems,  // SkyUI's inventory icons for weapons, armor, potions, ammo and torches
+	kInventoryAll     // SkyUI's inventory / magic menu icons for everything
+};
+
 // How the main bar key opens the main bar
 enum class MainBarKeyMode : int
 {
@@ -60,7 +68,7 @@ using RGBA = std::array<float, 4>;  // 0..1, the bar opacity multiplies the alph
 struct BarColors
 {
 	RGBA frame{ 1.0f, 1.0f, 1.0f, 1.0f };           // tint of the slot border texture
-	RGBA slotBackground{ 1.0f, 1.0f, 1.0f, 1.0f };  // tint of the slot background texture
+	RGBA slotBackground{ 0.0f, 0.0f, 0.0f, 1.0f };  // fill of the slot background (the texture is a white mask, half transparent)
 	RGBA keyLabel{ 1.0f, 1.0f, 1.0f, 1.0f };
 	RGBA text{ 1.0f, 1.0f, 1.0f, 1.0f };  // item counts, cooldown seconds, page name
 	RGBA handMarker{ 1.0f, 220 / 255.0f, 120 / 255.0f, 1.0f };
@@ -92,6 +100,7 @@ struct Settings
 	bool       showCooldownText{ true };
 	bool       showItemCount{ true };
 	bool       showInMenus{ true };  // show the bar in the magic / inventory / favorites menu for binding
+	IconStyle  iconStyle{ IconStyle::kOwn };
 	BarColors  colors{};
 
 	// keys

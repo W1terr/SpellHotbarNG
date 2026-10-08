@@ -1,6 +1,7 @@
 #include "ui/Icons.h"
 
 #include "core/Config.h"
+#include "ui/InventoryIcons.h"
 #include "ui/ItemIcons.h"
 #include "core/Util.h"
 
@@ -14,6 +15,7 @@ namespace Icons
 		std::unordered_map<std::string, Icon>        named;      // "BAR_EMPTY", ...
 		std::unordered_map<std::string, Icon>        namedNordic;
 		std::unordered_map<RE::FormID, Icon>         cache;      // resolved results incl. fallbacks
+		IconStyle                                    cacheStyle{ IconStyle::kOwn };
 
 		// icons the player picked: every atlas key (also of plugins that aren't loaded) and the choices file
 		std::unordered_map<std::string, Icon>        byKey;
@@ -195,6 +197,25 @@ namespace Icons
 			}
 		}
 
+		// SkyUI's icon if the icon style wants one for this form; a_final = false while it's still being drawn
+		Icon InventoryIcon(RE::TESForm* a_form, IconStyle a_style, bool& a_final)
+		{
+			if (a_style == IconStyle::kOwn || (a_style == IconStyle::kInventoryItems && !InventoryIcons::IsItem(a_form)) ||
+				InventoryIcons::MoviePath().empty()) {
+				return {};
+			}
+			const auto look = InventoryIcons::For(a_form);
+			if (!look) {
+				return {};
+			}
+			bool pending = false;
+			if (const auto texture = ItemIcons::MenuIcon(look->label, pending)) {
+				return Icon{ .texture = texture, .rgb = look->rgb };
+			}
+			a_final = !pending;
+			return {};
+		}
+
 		Icon Fallback(RE::TESForm* a_form)
 		{
 			switch (a_form->GetFormType()) {
@@ -301,13 +322,21 @@ namespace Icons
 		if (!a_form) {
 			return Named("UNKNOWN");
 		}
+		const auto style = Config::Get().iconStyle;
+		if (style != cacheStyle) {
+			cache.clear();
+			cacheStyle = style;
+		}
 		const auto id = a_form->GetFormID();
 		if (const auto it = cache.find(id); it != cache.end()) {
 			return it->second;
 		}
 		Icon icon;
+		bool final = true;  // false: show this for now, ask again next frame
 		if (const auto custom = customByForm.find(id); custom != customByForm.end() && byKey.contains(custom->second)) {
 			icon = byKey[custom->second];
+		} else if (const auto inventory = InventoryIcon(a_form, style, final); inventory.Valid()) {
+			icon = inventory;
 		} else if (const auto it = byForm.find(id); it != byForm.end()) {
 			icon = it->second;
 		} else if (ItemIcons::Supports(a_form)) {
@@ -321,7 +350,9 @@ namespace Icons
 		} else {
 			icon = Fallback(a_form);
 		}
-		cache[id] = icon;
+		if (final) {
+			cache[id] = icon;
+		}
 		return icon;
 	}
 

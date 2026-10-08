@@ -89,7 +89,7 @@
   "Frame": "Cadre",
   "Tint of the slot border. White keeps the original look.": "Teinte du bord des emplacements. Le blanc garde l'aspect d'origine.",
   "Slot background": "Fond des emplacements",
-  "Tint of the empty slot texture. White keeps the original look.": "Teinte de la texture des emplacements vides. Le blanc garde l'aspect d'origine.",
+  "Color behind the icons. Black is the original look.": "Couleur derrière les icônes. Le noir correspond à l'apparence d'origine.",
   "Key labels": "Noms des touches",
   "Text": "Texte",
   "Item counts, cooldown seconds and the extra bar's key above the bar.": "Quantités, secondes de recharge et touche de la barre supplémentaire au-dessus de la barre.",
@@ -179,5 +179,14 @@
   "Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).": "Les profils sont enregistrés dans {} (avec Mod Organizer 2 : dans le dossier overwrite).",
   "Press a slot key to bind {}": "Appuyez sur une touche d'emplacement pour assigner {}",
   "Select a spell or item, then press a slot key": "Sélectionnez un sort ou un objet, puis appuyez sur une touche d'emplacement",
-  "[holding {}]": "[{} maintenu]"
+  "[holding {}]": "[{} maintenu]",
+  "Default ({})": "Par défaut ({})",
+  "On key press": "À l'appui",
+  "On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do.": "À l'appui : ce que fait la touche d'emplacement avec ce sort, ce pouvoir ou ce cri. Par défaut suit Touches > Effet des touches d'emplacement.",
+  "Icon style": "Style d'icônes",
+  "Spell Hotbar icons": "Icônes de Spell Hotbar",
+  "Inventory icons for items": "Icônes d'inventaire pour les objets",
+  "Inventory icons for everything": "Icônes d'inventaire pour tout",
+  "Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n(also those of an icon replacer you have installed).\nItems: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\nEverything: spells, scrolls, powers and shouts get SkyUI's icons too.\nAn icon you pick below is always used.": "Les icônes d'inventaire sont celles que SkyUI affiche dans l'inventaire, les favoris et le menu de magie\n(aussi celles d'un remplacement d'icônes que vous avez installé).\nObjets : armes, armures, munitions, torches, potions et nourriture. Les sorts, parchemins, pouvoirs et cris gardent leurs icônes.\nTout : les sorts, parchemins, pouvoirs et cris prennent aussi les icônes de SkyUI.\nUne icône que vous choisissez ci-dessous est toujours utilisée.",
+  "SkyUI is not installed, so the bar keeps its own icons.": "SkyUI n'est pas installé, la barre garde donc ses propres icônes."
 }

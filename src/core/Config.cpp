@@ -33,7 +33,7 @@ namespace Config
 		// json key of every bar color
 		constexpr std::pair<const char*, RGBA BarColors::*> kColorFields[]{
 			{ "frame", &BarColors::frame },
-			{ "slotBackground", &BarColors::slotBackground },
+			{ "slotFill", &BarColors::slotBackground },
 			{ "keyLabel", &BarColors::keyLabel },
 			{ "text", &BarColors::text },
 			{ "handMarker", &BarColors::handMarker },
@@ -156,6 +156,7 @@ namespace Config
 		j["showCooldownText"] = s.showCooldownText;
 		j["showItemCount"] = s.showItemCount;
 		j["showInMenus"] = s.showInMenus;
+		j["iconStyle"] = static_cast<int>(s.iconStyle);
 		auto& colors = j["colors"];
 		for (const auto& [key, member] : kColorFields) {
 			colors[key] = s.colors.*member;
@@ -209,9 +210,16 @@ namespace Config
 		Read(j, "showCooldownText", s.showCooldownText);
 		Read(j, "showItemCount", s.showItemCount);
 		Read(j, "showInMenus", s.showInMenus);
+		Read(j, "iconStyle", s.iconStyle);
 		if (const auto colors = j.find("colors"); colors != j.end() && colors->is_object()) {
 			for (const auto& [key, member] : kColorFields) {
 				ReadArray(*colors, key, s.colors.*member);
+			}
+			// before "slotFill" the color tinted a black texture: only its alpha showed
+			if (!colors->contains("slotFill") && colors->contains("slotBackground")) {
+				RGBA tint{ 1.0f, 1.0f, 1.0f, 1.0f };
+				ReadArray(*colors, "slotBackground", tint);
+				s.colors.slotBackground = { 0.0f, 0.0f, 0.0f, tint[3] };
 			}
 		}
 
@@ -252,6 +260,7 @@ namespace Config
 		s.keyPressShowTime = std::clamp(s.keyPressShowTime, 0.5f, 10.0f);
 		s.fadedOpacity = std::clamp(s.fadedOpacity, 0.0f, 1.0f);
 		s.keyMode = static_cast<KeyMode>(std::clamp(static_cast<int>(s.keyMode), 0, 2));
+		s.iconStyle = static_cast<IconStyle>(std::clamp(static_cast<int>(s.iconStyle), 0, 2));
 		s.mainBarKeyMode = static_cast<MainBarKeyMode>(std::clamp(static_cast<int>(s.mainBarKeyMode), 0, 2));
 		s.readyAnchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.readyAnchor), 0, 8));
 		for (const auto& [key, member] : kColorFields) {

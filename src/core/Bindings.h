@@ -10,10 +10,19 @@ enum class Hand : std::uint8_t
 	kBoth
 };
 
+// What the slot key does with this slot's spell, scroll, power or shout
+enum class SlotMode : std::uint8_t
+{
+	kDefault = 0,  // the "What slot keys do" setting
+	kCast,
+	kEquip
+};
+
 struct SlotBinding
 {
 	RE::FormID form{ 0 };
 	Hand       hand{ Hand::kAuto };
+	SlotMode   mode{ SlotMode::kDefault };
 
 	[[nodiscard]] bool Empty() const { return form == 0; }
 };
@@ -51,6 +60,12 @@ namespace Bindings
 
 	// The hand only matters for one-handed spells, scrolls and weapons (weapons: right / left)
 	bool UsesHand(const RE::TESForm* a_form);
+
+	// The slot mode only matters for spells, scrolls, powers and shouts
+	bool UsesMode(const RE::TESForm* a_form);
+
+	// What the key of this binding does: its own mode, else the setting
+	KeyMode ModeOf(const SlotBinding& a_binding);
 
 	// Oblivion style: spells / scrolls for the cast key, potions for the potion key
 	bool FitsReadySlot(int a_slot, const RE::TESForm* a_form);

@@ -3,6 +3,7 @@
 #include "core/Hotkeys.h"
 #include "ui/Framework.h"
 #include "ui/Icons.h"
+#include "ui/InventoryIcons.h"
 #include "core/Input.h"
 #include "core/Keys.h"
 #include "core/Lang.h"
@@ -20,6 +21,8 @@ namespace UI
 		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
 		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
 		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };  // order of Hand
+		constexpr const char* kKeyModeNames[] = { "Cast right away", "Equip", "Oblivion style" };       // order of KeyMode
+		constexpr const char* kIconStyleNames[] = { "Spell Hotbar icons", "Inventory icons for items", "Inventory icons for everything" };  // order of IconStyle
 
 		// Translated texts of a fixed list (combo items)
 		template <std::size_t N>
@@ -115,7 +118,9 @@ namespace UI
 			const auto icon = a_form ? Icons::ForForm(a_form) : Icons::Named("BAR_EMPTY");
 			const auto texture = icon.texture ? icon.texture : AtlasTexture(icon.atlas);
 			if (texture) {
-				Image(texture, ImVec2{ a_size, a_size }, ImVec2{ icon.u0, icon.v0 }, ImVec2{ icon.u1, icon.v1 });
+				const auto channel = [&](int a_shift) { return ((icon.rgb >> a_shift) & 0xFF) / 255.0f; };
+				Image(texture, ImVec2{ a_size, a_size }, ImVec2{ icon.u0, icon.v0 }, ImVec2{ icon.u1, icon.v1 },
+					ImVec4{ channel(16), channel(8), channel(0), 1.0f });
 			} else {
 				Dummy(ImVec2{ a_size, a_size });
 			}
@@ -300,7 +305,7 @@ namespace UI
 		TextDisabled("%s", T("Click a color square to open the picker. The alpha bar sets each color's own transparency."));
 		auto& c = s.colors;
 		ColorOption("Frame", c.frame, "Tint of the slot border. White keeps the original look.");
-		ColorOption("Slot background", c.slotBackground, "Tint of the empty slot texture. White keeps the original look.");
+		ColorOption("Slot background", c.slotBackground, "Color behind the icons. Black is the original look.");
 		ColorOption("Key labels", c.keyLabel);
 		ColorOption("Text", c.text, "Item counts, cooldown seconds and the extra bar's key above the bar.");
 		ColorOption("Hand marker", c.handMarker, "The L / R / D letter of slots bound to a specific hand.");
@@ -513,11 +518,16 @@ namespace UI
 		const auto  handNames = Translated(kHandNames);
 		const float handWidth = TextWidth({ handNames[0], handNames[1], handNames[2], handNames[3] }) + GetFrameHeight() +
 		                        GetStyle()->FramePadding.x * 2.0f;
-		if (BeginTable("##bindings", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
+		// order of SlotMode; "Default" names the mode it follows
+		const auto  defaultMode = F("Default ({})", T(kKeyModeNames[static_cast<int>(s.keyMode)]));
+		const char* modeNames[] = { defaultMode.c_str(), T(kKeyModeNames[0]), T(kKeyModeNames[1]) };
+		const float modeWidth = TextWidth({ modeNames[0], modeNames[1], modeNames[2] }) + GetFrameHeight() + GetStyle()->FramePadding.x * 2.0f;
+		if (BeginTable("##bindings", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
 			TableSetupColumn(T("Slot"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn(T("Key"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn(T("Spell / item"), ImGuiTableColumnFlags_WidthStretch, 0.0f);
 			TableSetupColumn(T("Hand"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
+			TableSetupColumn(T("On key press"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 0.0f);
 			TableHeadersRow();
 
@@ -558,6 +568,16 @@ namespace UI
 				}
 
 				TableNextColumn();
+				if (form && Bindings::UsesMode(form)) {
+					auto& binding = Bindings::Get(page, slot);
+					int   mode = static_cast<int>(binding.mode);
+					SetNextItemWidth(modeWidth);
+					if (Combo("##mode", &mode, modeNames, static_cast<int>(std::size(modeNames)))) {
+						binding.mode = static_cast<SlotMode>(mode);
+					}
+				}
+
+				TableNextColumn();
 				if (form && SmallButton(Id("Clear", "clear").c_str())) {
 					Bindings::Clear(page, slot);
 				}
@@ -565,6 +585,7 @@ namespace UI
 			}
 			EndTable();
 		}
+		TextDisabled("%s", T("On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do."));
 		Spacing();
 		if (Button(Id("Clear this bar", "clearBar").c_str())) {
 			for (int slot = 0; slot < kMaxSlots; ++slot) {
@@ -707,6 +728,25 @@ namespace UI
 		std::scoped_lock lock(Config::Lock());
 
 		TextWrapped("%s", T("Pick the picture a spell, power, shout or item shows on the bar. Your choices count for every character."));
+
+		auto&      s = Config::Get();
+		const auto styleNames = Translated(kIconStyleNames);
+		int        style = static_cast<int>(s.iconStyle);
+		SetNextItemWidth(TextWidth({ styleNames[0], styleNames[1], styleNames[2] }) + GetFrameHeight() + GetStyle()->FramePadding.x * 2.0f);
+		if (Combo(Id("Icon style", "iconStyle").c_str(), &style, styleNames.data(), static_cast<int>(styleNames.size()))) {
+			s.iconStyle = static_cast<IconStyle>(style);
+			Changed(true);
+		}
+		Help("Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n"
+			 "(also those of an icon replacer you have installed).\n"
+			 "Items: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\n"
+			 "Everything: spells, scrolls, powers and shouts get SkyUI's icons too.\n"
+			 "An icon you pick below is always used.");
+		if (s.iconStyle != IconStyle::kOwn && InventoryIcons::MoviePath().empty()) {
+			TextColored(kGold, "%s", T("SkyUI is not installed, so the bar keeps its own icons."));
+		}
+		Spacing();
+
 		const auto player = RE::PlayerCharacter::GetSingleton();
 		if (!player || !player->Is3DLoaded()) {
 			TextWrapped("%s", T("Load a save to see your spells."));

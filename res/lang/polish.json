@@ -89,7 +89,7 @@
   "Frame": "Ramka",
   "Tint of the slot border. White keeps the original look.": "Odcień ramki slotu. Biały zachowuje oryginalny wygląd.",
   "Slot background": "Tło slotu",
-  "Tint of the empty slot texture. White keeps the original look.": "Odcień tekstury pustego slotu. Biały zachowuje oryginalny wygląd.",
+  "Color behind the icons. Black is the original look.": "Kolor za ikonami. Czarny to oryginalny wygląd.",
   "Key labels": "Nazwy klawiszy",
   "Text": "Tekst",
   "Item counts, cooldown seconds and the extra bar's key above the bar.": "Liczba przedmiotów, sekundy odnowienia i klawisz dodatkowego paska nad paskiem.",
@@ -179,5 +179,14 @@
   "Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).": "Profile są zapisywane w {} (w Mod Organizer 2: w folderze overwrite).",
   "Press a slot key to bind {}": "Naciśnij klawisz slotu, aby przypisać: {}",
   "Select a spell or item, then press a slot key": "Zaznacz zaklęcie lub przedmiot i naciśnij klawisz slotu",
-  "[holding {}]": "[przytrzymany {}]"
+  "[holding {}]": "[przytrzymany {}]",
+  "Default ({})": "Domyślnie ({})",
+  "On key press": "Po naciśnięciu",
+  "On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do.": "Po naciśnięciu: co klawisz slotu robi z tym zaklęciem, mocą lub okrzykiem. Domyślnie działa według Klawisze > Co robią klawisze slotów.",
+  "Icon style": "Styl ikon",
+  "Spell Hotbar icons": "Ikony Spell Hotbar",
+  "Inventory icons for items": "Ikony ekwipunku dla przedmiotów",
+  "Inventory icons for everything": "Ikony ekwipunku dla wszystkiego",
+  "Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n(also those of an icon replacer you have installed).\nItems: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\nEverything: spells, scrolls, powers and shouts get SkyUI's icons too.\nAn icon you pick below is always used.": "Ikony ekwipunku to te, które SkyUI pokazuje w ekwipunku, ulubionych i menu magii\n(także z zainstalowanego zamiennika ikon).\nPrzedmioty: broń, pancerze, amunicja, pochodnie, mikstury i jedzenie. Zaklęcia, zwoje, moce i okrzyki zachowują swoje ikony.\nWszystko: zaklęcia, zwoje, moce i okrzyki też dostają ikony SkyUI.\nIkona wybrana poniżej jest zawsze używana.",
+  "SkyUI is not installed, so the bar keeps its own icons.": "SkyUI nie jest zainstalowany, więc pasek zachowuje własne ikony."
 }

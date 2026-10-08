@@ -89,7 +89,7 @@
   "Frame": "枠",
   "Tint of the slot border. White keeps the original look.": "スロット枠の色合い。白で元の見た目のままになります。",
   "Slot background": "スロットの背景",
-  "Tint of the empty slot texture. White keeps the original look.": "空きスロットのテクスチャの色合い。白で元の見た目のままになります。",
+  "Color behind the icons. Black is the original look.": "アイコンの後ろの色。黒が元の見た目です。",
   "Key labels": "キー名",
   "Text": "テキスト",
   "Item counts, cooldown seconds and the extra bar's key above the bar.": "所持数、クールダウン秒数、バーの上に出る追加バーのキー。",
@@ -179,5 +179,14 @@
   "Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).": "プロファイルは {} に保存されます(Mod Organizer 2 では overwrite フォルダ)。",
   "Press a slot key to bind {}": "スロットキーを押して {} を登録",
   "Select a spell or item, then press a slot key": "魔法かアイテムを選び、スロットキーを押してください",
-  "[holding {}]": "[{} 押下中]"
+  "[holding {}]": "[{} 押下中]",
+  "Default ({})": "デフォルト ({})",
+  "On key press": "キーを押したとき",
+  "On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do.": "キーを押したとき: その魔法・パワー・シャウトでスロットキーが何をするか。デフォルトはキー設定 > スロットキーの動作に従います。",
+  "Icon style": "アイコンの種類",
+  "Spell Hotbar icons": "Spell Hotbar のアイコン",
+  "Inventory icons for items": "アイテムにインベントリのアイコン",
+  "Inventory icons for everything": "すべてにインベントリのアイコン",
+  "Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n(also those of an icon replacer you have installed).\nItems: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\nEverything: spells, scrolls, powers and shouts get SkyUI's icons too.\nAn icon you pick below is always used.": "インベントリのアイコンとは、SkyUI がインベントリ・お気に入り・魔法メニューで表示するアイコンです\n（インストールしたアイコン置き換えMODのものも含みます）。\nアイテム: 武器、防具、矢弾、松明、薬、食べ物。魔法、巻物、パワー、シャウトは元のアイコンのままです。\nすべて: 魔法、巻物、パワー、シャウトも SkyUI のアイコンになります。\n下で選んだアイコンは常に優先されます。",
+  "SkyUI is not installed, so the bar keeps its own icons.": "SkyUI がインストールされていないため、バーは独自のアイコンを使います。"
 }

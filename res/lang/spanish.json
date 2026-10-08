@@ -89,7 +89,7 @@
   "Frame": "Marco",
   "Tint of the slot border. White keeps the original look.": "Tono del borde de las ranuras. El blanco mantiene el aspecto original.",
   "Slot background": "Fondo de ranura",
-  "Tint of the empty slot texture. White keeps the original look.": "Tono de la textura de ranura vacía. El blanco mantiene el aspecto original.",
+  "Color behind the icons. Black is the original look.": "Color detrás de los iconos. El negro es el aspecto original.",
   "Key labels": "Nombres de teclas",
   "Text": "Texto",
   "Item counts, cooldown seconds and the extra bar's key above the bar.": "Cantidades, segundos de recarga y la tecla de la barra extra encima de la barra.",
@@ -179,5 +179,14 @@
   "Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).": "Los perfiles se guardan en {} (con Mod Organizer 2: en la carpeta overwrite).",
   "Press a slot key to bind {}": "Pulsa la tecla de una ranura para asignar {}",
   "Select a spell or item, then press a slot key": "Selecciona un hechizo u objeto y pulsa la tecla de una ranura",
-  "[holding {}]": "[{} pulsado]"
+  "[holding {}]": "[{} pulsado]",
+  "Default ({})": "Predeterminado ({})",
+  "On key press": "Al pulsar",
+  "On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do.": "Al pulsar: lo que hace la tecla de ranura con ese hechizo, poder o grito. Predeterminado sigue Teclas > Qué hacen las teclas de ranura.",
+  "Icon style": "Estilo de iconos",
+  "Spell Hotbar icons": "Iconos de Spell Hotbar",
+  "Inventory icons for items": "Iconos del inventario para objetos",
+  "Inventory icons for everything": "Iconos del inventario para todo",
+  "Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n(also those of an icon replacer you have installed).\nItems: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\nEverything: spells, scrolls, powers and shouts get SkyUI's icons too.\nAn icon you pick below is always used.": "Los iconos del inventario son los que SkyUI muestra en tu inventario, favoritos y menú de magia\n(también los de un reemplazo de iconos que tengas instalado).\nObjetos: armas, armaduras, munición, antorchas, pociones y comida. Los hechizos, pergaminos, poderes y gritos conservan sus iconos.\nTodo: los hechizos, pergaminos, poderes y gritos también usan los iconos de SkyUI.\nUn icono que elijas abajo siempre se usa.",
+  "SkyUI is not installed, so the bar keeps its own icons.": "SkyUI no está instalado, así que la barra mantiene sus propios iconos."
 }

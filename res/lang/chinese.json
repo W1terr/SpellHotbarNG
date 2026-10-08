@@ -89,7 +89,7 @@
   "Frame": "邊框",
   "Tint of the slot border. White keeps the original look.": "欄位邊框的色調。白色會保留原本的外觀。",
   "Slot background": "欄位背景",
-  "Tint of the empty slot texture. White keeps the original look.": "空欄位材質的色調。白色會保留原本的外觀。",
+  "Color behind the icons. Black is the original look.": "圖示後方的顏色。黑色是原本的樣子。",
   "Key labels": "按鍵名稱",
   "Text": "文字",
   "Item counts, cooldown seconds and the extra bar's key above the bar.": "物品數量、冷卻秒數，以及快捷列上方的額外快捷列按鍵。",
@@ -179,5 +179,14 @@
   "Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).": "設定檔儲存在 {}（使用 Mod Organizer 2 時：在 overwrite 資料夾）。",
   "Press a slot key to bind {}": "按下欄位按鍵以綁定 {}",
   "Select a spell or item, then press a slot key": "選取法術或物品，再按下欄位按鍵",
-  "[holding {}]": "[按住 {}]"
+  "[holding {}]": "[按住 {}]",
+  "Default ({})": "預設（{}）",
+  "On key press": "按下按鍵時",
+  "On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do.": "按下按鍵時：欄位按鍵對這個法術、威能或龍吼做什麼。預設會依照 按鍵 > 欄位按鍵的作用。",
+  "Icon style": "圖示樣式",
+  "Spell Hotbar icons": "Spell Hotbar 圖示",
+  "Inventory icons for items": "物品使用物品欄圖示",
+  "Inventory icons for everything": "全部使用物品欄圖示",
+  "Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n(also those of an icon replacer you have installed).\nItems: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\nEverything: spells, scrolls, powers and shouts get SkyUI's icons too.\nAn icon you pick below is always used.": "物品欄圖示就是 SkyUI 在物品欄、最愛和魔法選單中顯示的圖示\n（也包括你安裝的圖示替換模組）。\n物品：武器、護甲、彈藥、火把、藥水和食物。法術、卷軸、威能和龍吼保留自己的圖示。\n全部：法術、卷軸、威能和龍吼也使用 SkyUI 的圖示。\n你在下方選擇的圖示一定會被使用。",
+  "SkyUI is not installed, so the bar keeps its own icons.": "未安裝 SkyUI，所以快捷列保留自己的圖示。"
 }

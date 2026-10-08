@@ -11,6 +11,7 @@ namespace Bindings
 		constexpr std::uint32_t kRecordBindings = 'BIND';
 		constexpr std::uint32_t kRecordReady = 'REDY';
 		constexpr std::uint32_t kRecordVersion = 1;
+		constexpr std::uint32_t kBindingsVersion = 2;  // v2: + slot mode
 
 		std::array<std::array<SlotBinding, kMaxSlots>, kPageCount> slots{};
 		SlotBinding                                                readySpell{};
@@ -53,27 +54,28 @@ namespace Bindings
 		{
 			std::scoped_lock lock(Config::Lock());
 
-			std::vector<std::tuple<std::uint8_t, std::uint8_t, RE::FormID, std::uint8_t>> entries;
+			std::vector<std::tuple<std::uint8_t, std::uint8_t, SlotBinding>> entries;
 			for (int page = 0; page < kPageCount; ++page) {
 				for (int slot = 0; slot < kMaxSlots; ++slot) {
 					const auto& binding = slots[page][slot];
 					if (!binding.Empty()) {
-						entries.emplace_back(static_cast<std::uint8_t>(page), static_cast<std::uint8_t>(slot), binding.form, static_cast<std::uint8_t>(binding.hand));
+						entries.emplace_back(static_cast<std::uint8_t>(page), static_cast<std::uint8_t>(slot), binding);
 					}
 				}
 			}
 
-			if (!a_intfc->OpenRecord(kRecordBindings, kRecordVersion)) {
+			if (!a_intfc->OpenRecord(kRecordBindings, kBindingsVersion)) {
 				logs::error("Failed to open bindings record");
 				return;
 			}
 			const auto count = static_cast<std::uint32_t>(entries.size());
 			a_intfc->WriteRecordData(count);
-			for (const auto& [page, slot, form, hand] : entries) {
+			for (const auto& [page, slot, binding] : entries) {
 				a_intfc->WriteRecordData(page);
 				a_intfc->WriteRecordData(slot);
-				a_intfc->WriteRecordData(form);
-				a_intfc->WriteRecordData(hand);
+				a_intfc->WriteRecordData(binding.form);
+				a_intfc->WriteRecordData(static_cast<std::uint8_t>(binding.hand));
+				a_intfc->WriteRecordData(static_cast<std::uint8_t>(binding.mode));
 			}
 			logs::info("Saved {} slot bindings", count);
 			WriteReady(a_intfc);
@@ -95,7 +97,7 @@ namespace Bindings
 					ShoutCooldowns::Load(a_intfc, version);
 					continue;
 				}
-				if (type != kRecordBindings || version != kRecordVersion) {
+				if (type != kRecordBindings || version < 1 || version > kBindingsVersion) {
 					logs::warn("Unknown co-save record {:X} v{}", type, version);
 					continue;
 				}
@@ -103,12 +105,15 @@ namespace Bindings
 				a_intfc->ReadRecordData(count);
 				std::uint32_t restored = 0;
 				for (std::uint32_t i = 0; i < count; ++i) {
-					std::uint8_t page = 0, slot = 0, hand = 0;
+					std::uint8_t page = 0, slot = 0, hand = 0, mode = 0;
 					RE::FormID   form = 0;
 					a_intfc->ReadRecordData(page);
 					a_intfc->ReadRecordData(slot);
 					a_intfc->ReadRecordData(form);
 					a_intfc->ReadRecordData(hand);
+					if (version >= 2) {
+						a_intfc->ReadRecordData(mode);
+					}
 
 					RE::FormID resolved = 0;
 					if (!a_intfc->ResolveFormID(form, resolved) || !Valid(static_cast<Page>(page), slot)) {
@@ -117,7 +122,7 @@ namespace Bindings
 					if (!RE::TESForm::LookupByID(resolved)) {
 						continue;
 					}
-					slots[page][slot] = { resolved, static_cast<Hand>(std::min<std::uint8_t>(hand, 3)) };
+					slots[page][slot] = { resolved, static_cast<Hand>(std::min<std::uint8_t>(hand, 3)), static_cast<SlotMode>(std::min<std::uint8_t>(mode, 2)) };
 					++restored;
 				}
 				logs::info("Loaded {} of {} slot bindings", restored, count);
@@ -211,6 +216,23 @@ namespace Bindings
 		return a_form && (a_form->Is(RE::FormType::Scroll) || a_form->Is(RE::FormType::Weapon));
 	}
 
+	bool UsesMode(const RE::TESForm* a_form)
+	{
+		return a_form && (a_form->Is(RE::FormType::Spell) || a_form->Is(RE::FormType::Scroll) || a_form->Is(RE::FormType::Shout));
+	}
+
+	KeyMode ModeOf(const SlotBinding& a_binding)
+	{
+		switch (a_binding.mode) {
+		case SlotMode::kCast:
+			return KeyMode::kCast;
+		case SlotMode::kEquip:
+			return KeyMode::kEquip;
+		default:
+			return Config::Get().keyMode;
+		}
+	}
+
 	bool FitsReadySlot(int a_slot, const RE::TESForm* a_form)
 	{
 		if (!a_form) {
@@ -261,7 +283,8 @@ namespace Bindings
 				if (key.empty()) {
 					continue;  // player made potions etc. only exist in that save
 				}
-				out.push_back({ { "page", page }, { "slot", slot }, { "form", key }, { "hand", static_cast<int>(binding.hand) } });
+				out.push_back({ { "page", page }, { "slot", slot }, { "form", key }, { "hand", static_cast<int>(binding.hand) },
+					{ "mode", static_cast<int>(binding.mode) } });
 			}
 		}
 		return out;
@@ -278,8 +301,9 @@ namespace Bindings
 			const auto slot = entry.value("slot", -1);
 			const auto form = Util::FromPluginKey(entry.value("form", ""s));
 			const auto hand = std::clamp(entry.value("hand", 0), 0, 3);
+			const auto mode = std::clamp(entry.value("mode", 0), 0, 2);
 			if (form && RE::TESForm::LookupByID(form) && Valid(static_cast<Page>(page), slot)) {
-				slots[page][slot] = { form, static_cast<Hand>(hand) };
+				slots[page][slot] = { form, static_cast<Hand>(hand), static_cast<SlotMode>(mode) };
 			}
 		}
 	}

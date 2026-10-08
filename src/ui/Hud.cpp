@@ -36,6 +36,10 @@ namespace UI
 			if (!texture) {
 				return;
 			}
+			if (a_icon.rgb != 0xFFFFFF) {
+				const auto channel = [&](int a_shift) { return ((a_tint >> a_shift) & 0xFF) * ((a_icon.rgb >> (16 - a_shift)) & 0xFF) / 255; };
+				a_tint = IM_COL32(channel(IM_COL32_R_SHIFT), channel(IM_COL32_G_SHIFT), channel(IM_COL32_B_SHIFT), (a_tint >> IM_COL32_A_SHIFT) & 0xFF);
+			}
 			ImDrawListManager::AddImage(a_list, texture, a_min, a_max, ImVec2{ a_icon.u0, a_icon.v0 }, ImVec2{ a_icon.u1, a_icon.v1 }, a_tint);
 		}
 

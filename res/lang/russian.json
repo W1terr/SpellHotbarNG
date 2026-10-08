@@ -89,7 +89,7 @@
   "Frame": "Рамка",
   "Tint of the slot border. White keeps the original look.": "Оттенок рамки ячейки. Белый сохраняет исходный вид.",
   "Slot background": "Фон ячейки",
-  "Tint of the empty slot texture. White keeps the original look.": "Оттенок текстуры пустой ячейки. Белый сохраняет исходный вид.",
+  "Color behind the icons. Black is the original look.": "Цвет за значками. Чёрный — исходный вид.",
   "Key labels": "Названия клавиш",
   "Text": "Текст",
   "Item counts, cooldown seconds and the extra bar's key above the bar.": "Количество предметов, секунды перезарядки и клавиша доп. панели над панелью.",
@@ -179,5 +179,14 @@
   "Profiles are saved in {} (with Mod Organizer 2: in the overwrite folder).": "Профили сохраняются в {} (в Mod Organizer 2: в папке overwrite).",
   "Press a slot key to bind {}": "Нажмите клавишу ячейки, чтобы назначить: {}",
   "Select a spell or item, then press a slot key": "Выберите заклинание или предмет и нажмите клавишу ячейки",
-  "[holding {}]": "[удерживается {}]"
+  "[holding {}]": "[удерживается {}]",
+  "Default ({})": "По умолчанию ({})",
+  "On key press": "При нажатии",
+  "On key press: what the slot key does with that spell, power or shout. Default follows Hotkeys > What slot keys do.": "При нажатии: что клавиша ячейки делает с этим заклинанием, умением или криком. По умолчанию — как в Клавиши > Что делают клавиши ячеек.",
+  "Icon style": "Стиль значков",
+  "Spell Hotbar icons": "Значки Spell Hotbar",
+  "Inventory icons for items": "Значки инвентаря для предметов",
+  "Inventory icons for everything": "Значки инвентаря для всего",
+  "Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n(also those of an icon replacer you have installed).\nItems: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\nEverything: spells, scrolls, powers and shouts get SkyUI's icons too.\nAn icon you pick below is always used.": "Значки инвентаря — это те, что SkyUI показывает в инвентаре, избранном и меню магии\n(в том числе из установленной замены значков).\nПредметы: оружие, броня, боеприпасы, факелы, зелья и еда. Заклинания, свитки, умения и крики сохраняют свои значки.\nВсё: заклинания, свитки, умения и крики тоже получают значки SkyUI.\nЗначок, выбранный ниже, используется всегда.",
+  "SkyUI is not installed, so the bar keeps its own icons.": "SkyUI не установлен, поэтому панель использует свои значки."
 }

@@ -11,7 +11,8 @@ namespace Icons
 		float v0{ 0.0f };
 		float u1{ 1.0f };
 		float v1{ 1.0f };
-		void* texture{ nullptr };  // own texture instead of an atlas (item model icons, see ItemIcons)
+		void* texture{ nullptr };  // own texture instead of an atlas (item model icons, SkyUI icons, see ItemIcons)
+		std::uint32_t rgb{ 0xFFFFFF };  // color the picture is tinted with (SkyUI icons are white)
 
 		[[nodiscard]] bool Valid() const { return atlas >= 0 || texture; }
 	};
@@ -22,8 +23,9 @@ namespace Icons
 	const std::string& AtlasPath(int a_atlas);
 	int                AtlasCount();
 
-	// Icon for a form: the one the player picked, else its own, else a generic school / item icon. Weapons, armor,
-	// ammo and torches without an atlas icon get a picture of their model once it's made (ItemIcons).
+	// Icon for a form: the one the player picked, else SkyUI's inventory icon if the icon style wants it, else its own,
+	// else a generic school / item icon. Weapons, armor, ammo and torches without an atlas icon get a picture of their
+	// model once it's made (ItemIcons).
 	Icon ForForm(RE::TESForm* a_form);
 
 	// UI and fallback icons: BAR_EMPTY, BAR_OVERLAY, BAR_HIGHLIGHT, UNKNOWN, ...
