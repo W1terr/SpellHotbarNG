@@ -127,7 +127,7 @@ namespace UI
 					return std::nullopt;
 				}
 				if (MenuOpen(RE::DialogueMenu::MENU_NAME) || MenuOpen(RE::MapMenu::MENU_NAME) || MenuOpen(RE::BookMenu::MENU_NAME) ||
-					MenuOpen(RE::LockpickingMenu::MENU_NAME) || MenuOpen(RE::Console::MENU_NAME)) {
+					MenuOpen(RE::LockpickingMenu::MENU_NAME) || MenuOpen(RE::Console::MENU_NAME) || MenuOpen(RE::FavoritesMenu::MENU_NAME)) {
 					return std::nullopt;
 				}
 
@@ -349,6 +349,7 @@ namespace UI
 		                     0.0f :
 		                     std::min(std::chrono::duration<float>(now - lastFrame).count(), 0.1f);
 		lastFrame = now;
+		Bindings::UpdateFavorites(dt);  // here, not in the player update: the menus pause the game
 		const auto& settings = Config::Get();
 		const auto  page = Input::CurrentPage();
 		const bool  oblivion = settings.keyMode == KeyMode::kOblivion;
@@ -397,8 +398,11 @@ namespace UI
 
 		// while showing / hiding the bars sit a bit towards the screen edge they're anchored to (bottom bar: lower)
 		const float slide = (1.0f - eased) * kSlideDistance * scale;
-		const auto  origin = Origin(settings.anchor, settings.offsetX, settings.offsetY, { width, height }, screen, scale,
-			(1.0f - mainEased) * kSlideDistance * scale);
+		// in the inventory / magic / favorites menu the bars can have a place of their own (menus cover the usual one)
+		const bool  menuPlace = settings.menuPosition && (ctx->preview ? PreviewMenuPosition() : ctx->bindMenu);
+		const float mainSlide = (1.0f - mainEased) * kSlideDistance * scale;
+		const auto  origin = menuPlace ? Origin(settings.menuAnchor, settings.menuOffsetX, settings.menuOffsetY, { width, height }, screen, scale, 0.0f) :
+		                                 Origin(settings.anchor, settings.offsetX, settings.offsetY, { width, height }, screen, scale, mainSlide);
 
 		const auto castInfo = Actions::CurrentCast();
 		const auto selection = ctx->bindMenu ? Input::MenuSelection() : nullptr;
@@ -424,7 +428,9 @@ namespace UI
 		// keys that use them
 		const int  n = settings.readyShowPower ? 3 : 2;
 		const auto extent = settings.readyVertical ? ImVec2{ size, n * size + (n - 1) * spacing } : ImVec2{ n * size + (n - 1) * spacing, size };
-		const auto readyOrigin = Origin(settings.readyAnchor, settings.readyOffsetX, settings.readyOffsetY, extent, screen, scale, slide);
+		const auto readyOrigin = menuPlace ?
+		                             Origin(settings.menuReadyAnchor, settings.menuReadyOffsetX, settings.menuReadyOffsetY, extent, screen, scale, 0.0f) :
+		                             Origin(settings.readyAnchor, settings.readyOffsetX, settings.readyOffsetY, extent, screen, scale, slide);
 		if (oblivion) {
 			const auto step = settings.readyVertical ? ImVec2{ 0.0f, size + spacing } : ImVec2{ size + spacing, 0.0f };
 			for (int i = 0; i < n; ++i) {

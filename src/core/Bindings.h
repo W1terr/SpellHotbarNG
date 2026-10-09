@@ -44,6 +44,10 @@ namespace Bindings
 	void               Clear(Page a_page, int a_slot);
 	void               ClearAll();
 
+	// Option "Unfavoriting removes it from the bar": a bound spell, item, power or shout that stops being a favorite
+	// leaves the bar, like a vanilla favorites hotkey. Call every frame.
+	void UpdateFavorites(float a_delta);
+
 	enum class MenuBind
 	{
 		kBound,

@@ -75,6 +75,7 @@ namespace Actions
 		}
 
 		constexpr auto kDrawingOrSheathing = "drawing / sheathing";
+		constexpr auto kAttacking = "attacking";
 
 		// Why magic can't be used right now, nullptr if it can: no magic while jumping / falling, in beast form, riding,
 		// swimming (vanilla can't cast while swimming either), attacking (weapon swings incl. power attacks, bashes,
@@ -99,7 +100,7 @@ namespace Actions
 				return "swimming";
 			}
 			if (state->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone) {
-				return "attacking";
+				return kAttacking;
 			}
 			const auto weapon = state->GetWeaponState();
 			if (weapon != RE::WEAPON_STATE::kSheathed && weapon != RE::WEAPON_STATE::kDrawn) {
@@ -111,6 +112,22 @@ namespace Actions
 		bool CanCastNow()
 		{
 			return !CastBlocker();
+		}
+
+		// Option "Cast during attacks": a hotbar cast ends the player's weapon swing / power attack / bash right away.
+		// The attack behaviors leave their attack state on these events; the game's own attack state is cleared here
+		// because the swing clip that would end it never finishes. Casting waits a moment for the graph (CastAnim).
+		void StopAttack()
+		{
+			const auto player = Player();
+			const auto state = player->AsActorState();
+			if (!retrying) {
+				logs::info("Stopping the attack (state {}) for a hotbar cast", static_cast<int>(state->GetAttackState()));
+			}
+			player->NotifyAnimationGraph("attackStop"sv);
+			player->NotifyAnimationGraph("PowerAttackStop"sv);
+			state->actorState1.meleeAttackState = RE::ATTACK_STATE_ENUM::kNone;
+			CastAnim::AttackStopped();
 		}
 
 		std::string SlotName(int a_slot)
@@ -768,7 +785,12 @@ namespace Actions
 		}
 
 		const bool magic = form->Is(RE::FormType::Spell) || form->Is(RE::FormType::Scroll) || form->Is(RE::FormType::Shout);
-		if (const auto blocker = magic ? CastBlocker() : nullptr) {
+		auto       blocker = magic ? CastBlocker() : nullptr;
+		if (blocker == kAttacking && Config::Get().castDuringAttacks) {
+			StopAttack();
+			blocker = CastBlocker();
+		}
+		if (blocker) {
 			// a draw / sheathe (also the draw after summoning a bound weapon) only takes a moment: the press waits for it
 			if (blocker == kDrawingOrSheathing) {
 				LogPress(a_slot, form, "waits, drawing / sheathing");

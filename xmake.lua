@@ -3,7 +3,7 @@ includes("lib/commonlibsse-ng")
 
 -- set project constants
 set_project("SpellHotbarNG")
-set_version("1.7.0")
+set_version("1.8.0")
 set_license("GPL-3.0")
 set_languages("c++23")
 set_warnings("allextra")

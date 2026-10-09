@@ -7,6 +7,7 @@
 #include "core/Input.h"
 #include "core/Keys.h"
 #include "core/Lang.h"
+#include "ui/UI.h"
 
 namespace UI
 {
@@ -22,6 +23,7 @@ namespace UI
 		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
 		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };  // order of Hand
 		constexpr const char* kKeyModeNames[] = { "Cast right away", "Equip", "Oblivion style" };       // order of KeyMode
+		constexpr const char* kPictureSourceNames[] = { "All", "Spell Hotbar NG", "SpellHotbar2 icon packs" };  // icon picker filter
 		constexpr const char* kIconStyleNames[] = { "Spell Hotbar icons", "Inventory icons for items", "Inventory icons for everything" };  // order of IconStyle
 
 		// Translated texts of a fixed list (combo items)
@@ -219,12 +221,48 @@ namespace UI
 		}
 	}
 
+	namespace
+	{
+		bool previewMenuPosition{ false };
+
+		// The widget just drawn belongs to the in-game position (false) or the menu position (true): while the player
+		// points at or drags it, the settings preview shows the bars at that place
+		void PreviewGroup(bool a_menu)
+		{
+			if (IsItemHovered() || IsItemActive()) {
+				previewMenuPosition = a_menu;
+			}
+		}
+
+		// Anchor combo + offset sliders; a_id prefixes the widget ids ("" = the main bar's own ids)
+		void PositionOptions(Anchor& a_anchor, float& a_x, float& a_y, std::string_view a_id, bool a_menu)
+		{
+			const auto anchorNames = Translated(kAnchorNames);
+			const auto id = [&](std::string_view a_name) {
+				return a_id.empty() ? std::string(a_name) : std::format("{}{}{}", a_id, static_cast<char>(std::toupper(a_name[0])), a_name.substr(1));
+			};
+			int anchor = static_cast<int>(a_anchor);
+			if (Combo(Id("Anchor", id("anchor")).c_str(), &anchor, anchorNames.data(), static_cast<int>(anchorNames.size()))) {
+				a_anchor = static_cast<Anchor>(anchor);
+				Changed(true);
+			}
+			PreviewGroup(a_menu);
+			Changed(SliderFloat(Id("Offset X", id("offsetX")).c_str(), &a_x, -1920.0f, 1920.0f, "%.0f px"));
+			PreviewGroup(a_menu);
+			Changed(SliderFloat(Id("Offset Y", id("offsetY")).c_str(), &a_y, -1080.0f, 1080.0f, "%.0f px"));
+			PreviewGroup(a_menu);
+		}
+	}
+
+	bool PreviewMenuPosition()
+	{
+		return previewMenuPosition;
+	}
+
 	void __stdcall RenderBarPage()
 	{
 		std::scoped_lock lock(Config::Lock());
 		auto&            s = Config::Get();
-
-		const auto anchorNames = Translated(kAnchorNames);
 
 		TextWrapped("%s", T("The bar is previewed live while this menu is open. Sizes are in pixels at 1080p and scale with your resolution."));
 		SeparatorText(T("Size"));
@@ -235,30 +273,19 @@ namespace UI
 		Changed(SliderFloat(Id("Spacing", "spacing").c_str(), &s.spacing, 0.0f, 60.0f, "%.0f px"));
 
 		SeparatorText(T("Position"));
-		int anchor = static_cast<int>(s.anchor);
-		if (Combo(Id("Anchor", "anchor").c_str(), &anchor, anchorNames.data(), static_cast<int>(anchorNames.size()))) {
-			s.anchor = static_cast<Anchor>(anchor);
-			Changed(true);
-		}
-		Changed(SliderFloat(Id("Offset X", "offsetX").c_str(), &s.offsetX, -1920.0f, 1920.0f, "%.0f px"));
-		Changed(SliderFloat(Id("Offset Y", "offsetY").c_str(), &s.offsetY, -1080.0f, 1080.0f, "%.0f px"));
+		PositionOptions(s.anchor, s.offsetX, s.offsetY, "", false);
 		if (Button(Id("Reset position", "resetPosition").c_str())) {
 			s.anchor = Anchor::kBottom;
 			s.offsetX = 0.0f;
 			s.offsetY = -100.0f;
 			Changed(true);
 		}
+		PreviewGroup(false);
 
 		if (s.keyMode == KeyMode::kOblivion) {
 			SeparatorText(T("Oblivion style bar"));
 			TextDisabled("%s", T("Shows the picked spell, the picked potion and your power. It follows the Show bar setting below."));
-			int readyAnchor = static_cast<int>(s.readyAnchor);
-			if (Combo(Id("Anchor", "readyAnchor").c_str(), &readyAnchor, anchorNames.data(), static_cast<int>(anchorNames.size()))) {
-				s.readyAnchor = static_cast<Anchor>(readyAnchor);
-				Changed(true);
-			}
-			Changed(SliderFloat(Id("Offset X", "readyOffsetX").c_str(), &s.readyOffsetX, -1920.0f, 1920.0f, "%.0f px"));
-			Changed(SliderFloat(Id("Offset Y", "readyOffsetY").c_str(), &s.readyOffsetY, -1080.0f, 1080.0f, "%.0f px"));
+			PositionOptions(s.readyAnchor, s.readyOffsetX, s.readyOffsetY, "ready", false);
 			Changed(Checkbox(Id("Show power", "readyShowPower").c_str(), &s.readyShowPower));
 			Help("A third slot with your current power or shout, labelled with the game's Shout key.");
 			Changed(Checkbox(Id("Vertical", "readyVertical").c_str(), &s.readyVertical));
@@ -273,6 +300,7 @@ namespace UI
 				s.readyOffsetY = defaults.readyOffsetY;
 				Changed(true);
 			}
+			PreviewGroup(false);
 		}
 
 		SeparatorText(T("Visibility"));
@@ -293,6 +321,32 @@ namespace UI
 			Changed(SliderFloat(Id("Faded opacity", "fadedOpacity").c_str(), &s.fadedOpacity, 0.0f, 1.0f, "%.2f"));
 		}
 		Changed(Checkbox(Id("Show in magic / inventory / favorites menu", "showInMenus").c_str(), &s.showInMenus));
+		if (s.showInMenus) {
+			if (Checkbox(Id("Own position in these menus", "menuPosition").c_str(), &s.menuPosition)) {
+				if (s.menuPosition) {
+					// start from where the bars are now
+					s.menuAnchor = s.anchor;
+					s.menuOffsetX = s.offsetX;
+					s.menuOffsetY = s.offsetY;
+					s.menuReadyAnchor = s.readyAnchor;
+					s.menuReadyOffsetX = s.readyOffsetX;
+					s.menuReadyOffsetY = s.readyOffsetY;
+				}
+				Changed(true);
+			}
+			Help("On: in the magic, inventory and favorites menus the bar moves to the place set here,\n"
+				 "so it doesn't cover the item list. The preview shows that place while you change it.");
+			PreviewGroup(true);
+			if (s.menuPosition) {
+				Indent();
+				PositionOptions(s.menuAnchor, s.menuOffsetX, s.menuOffsetY, "menu", true);
+				if (s.keyMode == KeyMode::kOblivion) {
+					TextDisabled("%s", T("Oblivion style bar"));
+					PositionOptions(s.menuReadyAnchor, s.menuReadyOffsetX, s.menuReadyOffsetY, "menuReady", true);
+				}
+				Unindent();
+			}
+		}
 
 		SeparatorText(T("Look"));
 		Changed(Checkbox(Id("Show empty slots", "showEmptySlots").c_str(), &s.showEmptySlots));
@@ -451,6 +505,20 @@ namespace UI
 			Help("On: a shout only puts itself on cooldown, so you can use your other shouts right away.\n"
 				 "Each shout slot shows its own cooldown, and it carries over when you save and load.\n"
 				 "Off: one cooldown for all shouts, like the base game.");
+			Changed(Checkbox(Id("Cast during weapon attacks", "castDuringAttacks").c_str(), &s.castDuringAttacks));
+			Help("On: a spell, scroll, power or shout cast right away from the bar stops your weapon\n"
+				 "attack (swing, power attack, bash) and is cast at once, so you can cancel attacks with it.\n"
+				 "Off: the bar's magic can't be used while you attack, like in the base game.");
+			Changed(Checkbox(Id("Bind in the Favorites menu", "bindInFavorites").c_str(), &s.bindInFavorites));
+			Help("On: in the Favorites menu, pressing a slot key puts the selected favorite on the bar,\n"
+				 "like in the Magic and Inventory menus.\n"
+				 "Off: the Favorites menu works like in the base game: number keys set its own hotkeys, and the bar\n"
+				 "isn't shown there. Tip: give the bar other slot keys, or turn off \"Slot keys only use the hotbar\",\n"
+				 "so those hotkeys also work in game.");
+			Changed(Checkbox(Id("Unfavoriting removes it from the bar", "unfavoriteRemoves").c_str(), &s.unfavoriteRemoves));
+			Help("On: when you unfavorite a spell, item, power or shout that's on the bar, it's taken off the bar,\n"
+				 "like a favorites hotkey in the base game.\n"
+				 "Off: the bar keeps it until you clear the slot yourself.");
 			Changed(Checkbox(Id("Slot keys only use the hotbar", "blockGameInput").c_str(), &s.blockGameInput));
 			Help("On: pressing a slot key only uses that slot.\n"
 				 "Off: the key also does what Skyrim normally does with it (for example 1 - 8 also use your favorites).\n"
@@ -605,8 +673,10 @@ namespace UI
 		RE::FormID                            iconTarget{ 0 };  // form whose icon is being picked, 0 = none
 		std::vector<RE::FormID>               iconForms;        // the player's spells, powers, shouts and what's on the bar
 		std::chrono::steady_clock::time_point iconFormsScanned{};
-		std::vector<int>                      iconMatches;  // Icons::Choices() indices matching iconSearch
+		int                                   iconSource{ 0 };  // order of kPictureSourceNames
+		std::vector<int>                      iconMatches;  // Icons::Choices() indices matching iconSearch and iconSource
 		std::string                           iconMatchesFor{ "\x01" };
+		int                                   iconMatchesSource{ -1 };
 
 		bool Contains(std::string_view a_text, std::string_view a_part)
 		{
@@ -668,11 +738,13 @@ namespace UI
 		void IconGrid(RE::TESForm* a_form)
 		{
 			const auto& choices = Icons::Choices();
-			if (iconMatchesFor != iconSearch) {
+			if (iconMatchesFor != iconSearch || iconMatchesSource != iconSource) {
 				iconMatchesFor = iconSearch;
+				iconMatchesSource = iconSource;
 				iconMatches.clear();
 				for (int i = 0; i < static_cast<int>(choices.size()); ++i) {
-					if (Contains(choices[i].name, iconSearch) || Contains(choices[i].group, iconSearch)) {
+					const bool source = iconSource == 0 || (iconSource == 2) == choices[i].spellHotbar2;
+					if (source && (Contains(choices[i].name, iconSearch) || Contains(choices[i].group, iconSearch))) {
 						iconMatches.push_back(i);
 					}
 				}
@@ -738,12 +810,30 @@ namespace UI
 			Changed(true);
 		}
 		Help("Inventory icons are the ones SkyUI shows in your inventory, favorites and magic menu\n"
-			 "(also those of an icon replacer you have installed).\n"
+			 "(also those of an icon replacer you have installed, and the icons of mods for\n"
+			 "Inventory Interface Information Injector (I4) like KIT).\n"
 			 "Items: weapons, armor, ammo, torches, potions and food. Spells, scrolls, powers and shouts keep their icons.\n"
 			 "Everything: spells, scrolls, powers and shouts get SkyUI's icons too.\n"
 			 "An icon you pick below is always used.");
 		if (s.iconStyle != IconStyle::kOwn && InventoryIcons::MoviePath().empty()) {
 			TextColored(kGold, "%s", T("SkyUI is not installed, so the bar keeps its own icons."));
+		} else if (s.iconStyle != IconStyle::kOwn && InventoryIcons::RuleCount() > 0) {
+			TextDisabled("%s", F("Uses {} icon rules of Inventory Interface Information Injector mods.", InventoryIcons::RuleCount()).c_str());
+		}
+
+		Changed(Checkbox(Id("Use SpellHotbar2 icon packs", "spellHotbar2Icons").c_str(), &s.spellHotbar2Icons));
+		Help("Icon packs made for SpellHotbar2 (like SpellHotbar2 - Icon Packs Hub) keep their pictures\n"
+			 "in Data\\SKSE\\Plugins\\SpellHotbar\\images.\n"
+			 "On: a spell, power or shout one of these packs has a picture for shows that picture on the bar.\n"
+			 "Off: the bar's own icons. Either way, Change below lets you pick any of their pictures.");
+		const bool packPictures = std::ranges::any_of(Icons::Choices(), [](const Icons::Choice& a_choice) { return a_choice.spellHotbar2; });
+		if (const auto count = Icons::SpellHotbar2IconCount(); count > 0) {
+			TextDisabled("%s", F("{} spells, powers and shouts have a picture in a SpellHotbar2 icon pack.", count).c_str());
+		} else if (!packPictures) {
+			TextDisabled("%s", T("No SpellHotbar2 icon packs found."));
+		}
+		if (packPictures) {
+			TextDisabled("%s", T("To give any spell one of their pictures: Change, then Pictures: SpellHotbar2 icon packs."));
 		}
 		Spacing();
 
@@ -824,6 +914,13 @@ namespace UI
 		SameLine();
 		SetNextItemWidth(220.0f);
 		InputTextWithHint("##iconSearch", T("Search"), iconSearch, sizeof(iconSearch));
+		SameLine();
+		const auto sourceNames = Translated(kPictureSourceNames);
+		SetNextItemWidth(TextWidth({ sourceNames[0], sourceNames[1], sourceNames[2] }) + GetFrameHeight() + GetStyle()->FramePadding.x * 2.0f);
+		Combo(Id("Pictures", "iconSource").c_str(), &iconSource, sourceNames.data(), static_cast<int>(sourceNames.size()));
+		Help("SpellHotbar2 icon packs: the pictures of the packs you installed from\n"
+			 "SpellHotbar2 - Icon Packs Hub (its installer only offers the packs for mods you have).\n"
+			 "Hover a picture to see its name and the pack it comes from.");
 		SameLine();
 		if (Button(Id("Done", "done").c_str())) {
 			iconTarget = 0;

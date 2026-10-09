@@ -22,10 +22,11 @@ namespace ItemIcons
 	// or if the model can't be photographed.
 	void* Get(RE::TESForm* a_form);
 
-	// Texture of a frame of SkyUI's inventory icon movie (InventoryIcons): white with transparency, tint it with the
-	// icon color. The capture menu draws the frame with Scaleform once per game session (icon packs may change).
-	// nullptr while it's being drawn (a_pending set) or if it can't be.
-	void* MenuIcon(const std::string& a_label, bool& a_pending);
+	// Texture of a frame of an inventory icon movie (SkyUI's or an I4 mod's, path under Interface without ".swf", see
+	// InventoryIcons): white with transparency, tint it with the icon color. The capture menu draws the frame with
+	// Scaleform once per game session (icon packs may change). nullptr while it's being drawn (a_pending set) or if it
+	// can't be.
+	void* MenuIcon(const std::string& a_movie, const std::string& a_label, bool& a_pending);
 
 	// Opens / closes the capture menu while captures are waiting. Call every frame.
 	void Update();

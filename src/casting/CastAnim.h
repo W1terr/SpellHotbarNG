@@ -62,6 +62,10 @@ namespace CastAnim
 	void Release();  // release animation
 	void Stop();     // cancel / end of concentration
 
+	// A weapon attack was just stopped for a cast: for a moment a refused start waits for the graph to leave the
+	// attack instead of casting without animation
+	void AttackStopped();
+
 	// The spell's casting art (fire / frost / healing glow ...) on the hand magic node(s), like a spell held in hand
 	// a_maxDuration is a safety limit, the art is normally removed with StopHandArt()
 	void StartHandArt(RE::MagicItem* a_item, Side a_side, float a_maxDuration);

@@ -57,8 +57,9 @@ namespace Input
 			if (!ui || !player || player->IsDead() || ui->GameIsPaused() || TextEntryActive()) {
 				return false;
 			}
+			// (the Favorites menu, if it isn't for binding, keeps its keys for the game's hotkeys)
 			if (ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME) || ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME) ||
-				ui->IsMenuOpen(RE::MainMenu::MENU_NAME) || UI::IsBlockingWindowOpen()) {
+				ui->IsMenuOpen(RE::MainMenu::MENU_NAME) || ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME) || UI::IsBlockingWindowOpen()) {
 				return false;
 			}
 			const auto controlMap = RE::ControlMap::GetSingleton();
@@ -392,8 +393,9 @@ namespace Input
 		if (!ui || TextEntryActive() || UI::IsBlockingWindowOpen() || Util::InBeastForm()) {
 			return false;  // a vampire lord can open the Magic menu, but the hotbar is off in beast form
 		}
+		// Favorites menu only with "Bind in the Favorites menu": otherwise its number keys set the game's own hotkeys
 		return ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) ||
-		       ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME);
+		       (Config::Get().bindInFavorites && ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME));
 	}
 
 	RE::TESForm* MenuSelection()

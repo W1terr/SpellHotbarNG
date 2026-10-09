@@ -16,7 +16,7 @@ import build_icons as icons
 import paths
 import patches
 
-VERSION = "1.7"
+VERSION = "1.8"
 ROOT = Path(__file__).parent.parent
 BUILD = paths.PLUGIN_BUILD
 STAGING = icons.OUT

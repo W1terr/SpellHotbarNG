@@ -17,6 +17,32 @@ namespace Bindings
 		SlotBinding                                                readySpell{};
 		SlotBinding                                                readyPotion{};
 
+		// Bound forms that were favorites at the last check (option "Unfavoriting removes it from the bar")
+		std::unordered_map<RE::FormID, bool> favoriteSeen;
+		float                                favoriteTimer{ 0.0f };
+		constexpr float                      kFavoriteCheckInterval = 0.25f;
+
+		// Whether the player has the form in the favorites; nullopt if that can't be told (item not in the inventory,
+		// e.g. the last potion was drunk: that keeps its slot)
+		std::optional<bool> IsFavorite(const RE::TESForm* a_form)
+		{
+			if (a_form->Is(RE::FormType::Spell, RE::FormType::Shout)) {
+				const auto favorites = RE::MagicFavorites::GetSingleton();
+				return favorites && std::ranges::find(favorites->spells, a_form) != favorites->spells.end();
+			}
+			const auto player = RE::PlayerCharacter::GetSingleton();
+			const auto changes = player ? player->GetInventoryChanges() : nullptr;
+			if (!changes || !changes->entryList) {
+				return std::nullopt;
+			}
+			for (const auto entry : *changes->entryList) {
+				if (entry && entry->object == a_form) {
+					return entry->countDelta > 0 ? std::optional(entry->IsFavorited()) : std::nullopt;
+				}
+			}
+			return std::nullopt;
+		}
+
 		void WriteReady(SKSE::SerializationInterface* a_intfc)
 		{
 			if (!a_intfc->OpenRecord(kRecordReady, kRecordVersion)) {
@@ -178,6 +204,58 @@ namespace Bindings
 		}
 		readySpell = {};
 		readyPotion = {};
+		favoriteSeen.clear();
+	}
+
+	void UpdateFavorites(float a_delta)
+	{
+		if (!Config::Get().unfavoriteRemoves) {
+			favoriteSeen.clear();
+			return;
+		}
+		favoriteTimer += a_delta;
+		if (favoriteTimer < kFavoriteCheckInterval) {
+			return;
+		}
+		favoriteTimer = 0.0f;
+
+		std::vector<SlotBinding*> bound;
+		for (auto& page : slots) {
+			for (auto& binding : page) {
+				bound.push_back(&binding);
+			}
+		}
+		bound.push_back(&readySpell);
+		bound.push_back(&readyPotion);
+
+		std::unordered_map<RE::FormID, bool> seen;
+		for (const auto binding : bound) {
+			const auto id = binding->form;
+			if (id == 0 || seen.contains(id)) {
+				continue;
+			}
+			const auto form = RE::TESForm::LookupByID(id);
+			const auto now = form ? IsFavorite(form) : std::nullopt;
+			const auto before = favoriteSeen.find(id);
+			const bool wasFavorite = before != favoriteSeen.end() && before->second;
+			if (!now) {
+				seen[id] = wasFavorite;  // can't tell right now: remember what it was
+				continue;
+			}
+			seen[id] = *now;
+			if (wasFavorite && !*now) {
+				// unfavorited, like a vanilla favorite hotkey: off the bar (every slot holding it)
+				int cleared = 0;
+				for (const auto other : bound) {
+					if (other->form == id) {
+						*other = {};
+						++cleared;
+					}
+				}
+				logs::info("{} was unfavorited: removed from {} slot(s)", form->GetName(), cleared);
+			}
+		}
+		favoriteSeen = std::move(seen);
 	}
 
 	MenuBind BindFromMenu(Page a_page, int a_slot, RE::TESForm* a_form)

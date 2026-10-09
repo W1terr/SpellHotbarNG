@@ -100,7 +100,15 @@ struct Settings
 	bool       showCooldownText{ true };
 	bool       showItemCount{ true };
 	bool       showInMenus{ true };  // show the bar in the magic / inventory / favorites menu for binding
+	bool       menuPosition{ false };  // in those menus the bars sit where the menu* settings say
+	Anchor     menuAnchor{ Anchor::kBottom };
+	float      menuOffsetX{ 0.0f };
+	float      menuOffsetY{ -100.0f };
+	Anchor     menuReadyAnchor{ Anchor::kBottomLeft };
+	float      menuReadyOffsetX{ 60.0f };
+	float      menuReadyOffsetY{ -110.0f };
 	IconStyle  iconStyle{ IconStyle::kOwn };
+	bool       spellHotbar2Icons{ true };  // icon packs made for SpellHotbar2 (Data\SKSE\Plugins\SpellHotbar\images) win over ours
 	BarColors  colors{};
 
 	// keys
@@ -116,6 +124,9 @@ struct Settings
 	bool                                      onlyWhileSneaking{ false };  // outside of sneak the hotbar keys are the game's
 	bool                                      aimAtCrosshair{ true };      // aimed spells fly to the crosshair, not the combat target
 	bool                                      individualShoutCooldowns{ false };  // each shout its own cooldown instead of the game's shared one
+	bool                                      castDuringAttacks{ false };  // a hotbar cast during a weapon attack stops the attack
+	bool                                      unfavoriteRemoves{ true };   // unfavoriting something takes it off the bar, like a vanilla hotkey
+	bool                                      bindInFavorites{ true };     // slot keys bind in the Favorites menu (off: they set the game's hotkeys there)
 
 	// what slot keys do
 	KeyMode       keyMode{ KeyMode::kCast };

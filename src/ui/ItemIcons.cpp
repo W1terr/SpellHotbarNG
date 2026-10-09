@@ -50,12 +50,17 @@ namespace ItemIcons
 		std::unordered_map<RE::FormID, std::string>  modelOf;   // form -> model key ("" = no model)
 		std::deque<std::pair<std::string, RE::FormID>> queue;
 		std::optional<Job>                           job;
-		std::unordered_map<std::string, Entry>       byLabel;     // SkyUI icon frame label -> icon
-		std::deque<std::string>                      labelQueue;
-		std::unordered_map<std::string, int>         labelEmpty;  // empty pictures of a label so far
-		RE::GPtr<RE::GFxMovieView>                   iconMovie;   // SkyUI's icon movie, loaded by the capture menu
+		// inventory icons: frames of SkyUI's icon movie or of the icon movies of I4 mods
+		struct MenuIconKey
+		{
+			std::string movie;
+			std::string label;
+		};
+		std::unordered_map<std::string, Entry>       byLabel;     // "<movie>|<frame label>" -> icon
+		std::deque<MenuIconKey>                      labelQueue;
+		std::unordered_map<std::string, int>         labelEmpty;  // empty pictures of a frame so far
+		std::unordered_map<std::string, RE::GPtr<RE::GFxMovieView>> iconMovies;  // loaded by the capture menu, nullptr = failed
 		const RE::IMenu*                             iconMovieMenu{ nullptr };
-		bool                                         iconMovieFailed{ false };
 		std::chrono::steady_clock::time_point        menuRequestTime{};  // last show / hide message
 
 		std::filesystem::path Dir()
@@ -479,46 +484,66 @@ namespace ItemIcons
 			return WriteDDS(a_path, bgra, kMenuIconSize) ? CaptureResult::kSaved : CaptureResult::kFailed;
 		}
 
-		std::string MenuIconFile(const std::string& a_label)
+		std::string MenuIconKeyText(const MenuIconKey& a_key)
 		{
-			std::string name;
-			for (const char c : a_label) {
-				name += std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
-			}
-			return (Dir() / "skyui" / std::format("{}.dds", name)).string();
+			return std::format("{}|{}", a_key.movie, a_key.label);
 		}
 
-		// One queued SkyUI icon per frame
+		// item_icons\skyui\<movie>\<label>.dds
+		std::string MenuIconFile(const MenuIconKey& a_key)
+		{
+			const auto clean = [](std::string_view a_text) {
+				std::string out;
+				for (const char c : a_text) {
+					out += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : '_';
+				}
+				return out;
+			};
+			return (Dir() / "skyui" / clean(a_key.movie) / std::format("{}.dds", clean(a_key.label))).string();
+		}
+
+		// The icon movie, loaded once per capture menu instance (it belongs to the menu that loaded it); nullptr if
+		// it can't be loaded
+		RE::GFxMovieView* IconMovie(const RE::IMenu* a_menu, const std::string& a_path)
+		{
+			if (iconMovieMenu != a_menu) {
+				iconMovies.clear();
+				iconMovieMenu = a_menu;
+			}
+			if (const auto it = iconMovies.find(a_path); it != iconMovies.end()) {
+				return it->second.get();
+			}
+			auto&      movie = iconMovies[a_path];
+			const auto scaleform = RE::BSScaleformManager::GetSingleton();
+			if (a_path.empty() || !scaleform ||
+				!scaleform->LoadMovie(const_cast<RE::IMenu*>(a_menu), movie, a_path.c_str(), RE::GFxMovieView::ScaleModeType::kShowAll, 0.0f) ||
+				!movie) {
+				movie.reset();
+				logs::warn("Inventory icons: could not load Interface/{}.swf", a_path);
+			}
+			return movie.get();
+		}
+
+		// One queued inventory icon per frame
 		void DrawNextMenuIcon(const RE::IMenu* a_menu)
 		{
 			if (labelQueue.empty()) {
 				return;
 			}
-			const auto label = labelQueue.front();
+			const auto key = labelQueue.front();
 			labelQueue.pop_front();
-			auto& entry = byLabel[label];
+			const auto keyText = MenuIconKeyText(key);
+			auto&      entry = byLabel[keyText];
 
-			if (iconMovieMenu != a_menu) {
-				// the movie belongs to the menu instance that loaded it
-				iconMovie.reset();
-				iconMovieMenu = a_menu;
-				const auto& path = InventoryIcons::MoviePath();
-				const auto  scaleform = RE::BSScaleformManager::GetSingleton();
-				iconMovieFailed = path.empty() || !scaleform ||
-				                  !scaleform->LoadMovie(const_cast<RE::IMenu*>(a_menu), iconMovie, path.c_str(), RE::GFxMovieView::ScaleModeType::kShowAll, 0.0f) ||
-				                  !iconMovie;
-				if (iconMovieFailed) {
-					logs::warn("Inventory icons: could not load Interface/{}.swf", path);
-				}
-			}
-			if (iconMovieFailed || !iconMovie->GotoLabeledFrame(label.c_str())) {
-				logs::warn("Inventory icons: no icon '{}'", label);
+			const auto iconMovie = IconMovie(a_menu, key.movie);
+			if (!iconMovie || !iconMovie->GotoLabeledFrame(key.label.c_str())) {
+				logs::warn("Inventory icons: no icon '{}' in Interface/{}.swf", key.label, key.movie);
 				entry.state = State::kFailed;
 				return;
 			}
 			iconMovie->Advance(0.0f, 0);
 
-			entry.path = MenuIconFile(label);
+			entry.path = MenuIconFile(key);
 			const auto result = CaptureTwice(
 				[&](int a_width, int a_height) {
 					iconMovie->SetViewport(a_width, a_height, 0, 0, kMenuIconSize, kMenuIconSize);
@@ -528,13 +553,13 @@ namespace ItemIcons
 					return a_width < kMenuIconSize || a_height < kMenuIconSize ? CaptureResult::kFailed :
 					                                                             ProcessMenuIcon(a_black, a_white, a_reader, entry.path);
 				});
-			if (result == CaptureResult::kEmpty && ++labelEmpty[label] < kEmptyRetries) {
-				labelQueue.push_back(label);  // nothing drawn yet, try again next frame
+			if (result == CaptureResult::kEmpty && ++labelEmpty[keyText] < kEmptyRetries) {
+				labelQueue.push_back(key);  // nothing drawn yet, try again next frame
 				return;
 			}
 			entry.state = result == CaptureResult::kSaved ? State::kReady : State::kFailed;
 			if (entry.state == State::kFailed) {
-				logs::warn("Inventory icons: could not draw '{}'", label);
+				logs::warn("Inventory icons: could not draw '{}' of Interface/{}.swf", key.label, key.movie);
 			}
 		}
 
@@ -683,7 +708,7 @@ namespace ItemIcons
 			{
 				std::scoped_lock guard(lock);
 				if (iconMovieMenu == this) {
-					iconMovie.reset();
+					iconMovies.clear();
 					iconMovieMenu = nullptr;
 				}
 			}
@@ -765,14 +790,15 @@ namespace ItemIcons
 		return nullptr;
 	}
 
-	void* MenuIcon(const std::string& a_label, bool& a_pending)
+	void* MenuIcon(const std::string& a_movie, const std::string& a_label, bool& a_pending)
 	{
 		std::scoped_lock guard(lock);
-		auto&            entry = byLabel[a_label];
+		MenuIconKey      key{ a_movie, a_label };
+		auto&            entry = byLabel[MenuIconKeyText(key)];
 		switch (entry.state) {
 		case State::kUnknown:
 			entry.state = State::kQueued;
-			labelQueue.push_back(a_label);
+			labelQueue.push_back(std::move(key));
 			a_pending = true;
 			return nullptr;
 		case State::kQueued:

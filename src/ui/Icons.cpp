@@ -14,8 +14,10 @@ namespace Icons
 		std::unordered_map<std::string, Icon>        byName;     // "name:<normalized item name>"
 		std::unordered_map<std::string, Icon>        named;      // "BAR_EMPTY", ...
 		std::unordered_map<std::string, Icon>        namedNordic;
+		std::unordered_map<RE::FormID, Icon>         bySpellHotbar2;  // icon packs made for SpellHotbar2
 		std::unordered_map<RE::FormID, Icon>         cache;      // resolved results incl. fallbacks
 		IconStyle                                    cacheStyle{ IconStyle::kOwn };
+		bool                                         cacheSpellHotbar2{ true };
 
 		// icons the player picked: every atlas key (also of plugins that aren't loaded) and the choices file
 		std::unordered_map<std::string, Icon>        byKey;
@@ -138,6 +140,101 @@ namespace Icons
 			logs::info("Icons {}: {} forms ({} from plugins that are not loaded)", a_csv.filename().string(), forms, missing);
 		}
 
+		// Icon packs made for SpellHotbar2 (e.g. "SpellHotbar2 - Icon Packs Hub"): a DDS (or PNG) atlas with a tab separated
+		// list next to it, columns FormID (0x hex, local to the plugin), Plugin, u0, v0, u1, v1 and an optional Name.
+		// Lists of other kinds (SpellHotbar2's own named UI icons, cooldown frames) are skipped.
+		std::filesystem::path SpellHotbar2Dir()
+		{
+			return std::filesystem::path("Data/SKSE/Plugins/SpellHotbar/images");
+		}
+
+		void LoadSpellHotbar2Atlas(const std::filesystem::path& a_csv)
+		{
+			std::error_code ec;
+			auto            image = a_csv;
+			if (!std::filesystem::exists(image.replace_extension(".dds"), ec) && !std::filesystem::exists(image.replace_extension(".png"), ec)) {
+				return;
+			}
+			std::ifstream file(a_csv);
+			std::string   line;
+			if (!file || !std::getline(file, line)) {
+				return;
+			}
+			if (!line.empty() && line.back() == '\r') {
+				line.pop_back();
+			}
+			if (line.starts_with("\xEF\xBB\xBF")) {
+				line.erase(0, 3);
+			}
+			// column index of every header name
+			std::unordered_map<std::string, std::size_t> columns;
+			const auto                                   header = Split(line, '\t');
+			for (std::size_t i = 0; i < header.size(); ++i) {
+				columns.emplace(std::string(header[i]), i);
+			}
+			constexpr std::array kNeeded{ "FormID", "Plugin", "u0", "v0", "u1", "v1" };
+			if (!std::ranges::all_of(kNeeded, [&](const char* a_name) { return columns.contains(a_name); })) {
+				return;
+			}
+			const auto nameColumn = columns.contains("Name") ? columns["Name"] : std::string::npos;
+
+			const int  atlas = static_cast<int>(atlases.size());
+			const auto stem = a_csv.stem().string();
+			atlases.push_back(image.string());
+			std::set<std::pair<float, float>> pictures;
+			int                               forms = 0, missing = 0;
+			while (std::getline(file, line)) {
+				if (!line.empty() && line.back() == '\r') {
+					line.pop_back();
+				}
+				const auto cols = Split(line, '\t');
+				const auto col = [&](const char* a_name) {
+					const auto i = columns[a_name];
+					return i < cols.size() ? cols[i] : std::string_view{};
+				};
+				if (col("FormID").empty() || col("Plugin").empty()) {
+					continue;
+				}
+				const Icon icon{ atlas, ToFloat(col("u0")), ToFloat(col("v0")), ToFloat(col("u1")), ToFloat(col("v1")) };
+				const auto formKey = std::format("{}|{}", col("Plugin"), col("FormID"));
+				const auto key = std::format("sh2:{}:{}", stem, formKey);
+				byKey[key] = icon;
+				if (pictures.emplace(icon.u0, icon.v0).second) {
+					const auto name = nameColumn < cols.size() && !cols[nameColumn].empty() ? cols[nameColumn] : std::string_view(formKey);
+					choices.push_back({ key, std::string(name), stem, icon, true });
+				}
+				if (const auto form = Util::FromPluginKey(formKey)) {
+					bySpellHotbar2[form] = icon;
+					++forms;
+				} else {
+					++missing;
+				}
+			}
+			logs::info("SpellHotbar2 icons {}: {} forms ({} from plugins that are not loaded)", a_csv.filename().string(), forms, missing);
+		}
+
+		void LoadSpellHotbar2Atlases()
+		{
+			std::error_code ec;
+			if (!std::filesystem::is_directory(SpellHotbar2Dir(), ec)) {
+				return;
+			}
+			std::vector<std::filesystem::path> lists;
+			for (const auto& entry : std::filesystem::directory_iterator(SpellHotbar2Dir(), ec)) {
+				if (entry.is_regular_file() && entry.path().extension() == ".csv") {
+					lists.push_back(entry.path());
+				}
+			}
+			// SpellHotbar2's vanilla lists first, so packs for spell mods win (its own order)
+			std::ranges::sort(lists, [](const auto& a, const auto& b) {
+				const bool va = a.stem().string().starts_with("icons_vanilla"), vb = b.stem().string().starts_with("icons_vanilla");
+				return va != vb ? va : a.filename() < b.filename();
+			});
+			for (const auto& list : lists) {
+				LoadSpellHotbar2Atlas(list);
+			}
+		}
+
 		const char* LevelName(std::int32_t a_minSkill)
 		{
 			if (a_minSkill < 25) {
@@ -209,7 +306,7 @@ namespace Icons
 				return {};
 			}
 			bool pending = false;
-			if (const auto texture = ItemIcons::MenuIcon(look->label, pending)) {
+			if (const auto texture = ItemIcons::MenuIcon(look->movie, look->label, pending)) {
 				return Icon{ .texture = texture, .rgb = look->rgb };
 			}
 			a_final = !pending;
@@ -258,6 +355,7 @@ namespace Icons
 	{
 		atlases.clear();
 		byForm.clear();
+		bySpellHotbar2.clear();
 		byName.clear();
 		named.clear();
 		namedNordic.clear();
@@ -287,7 +385,9 @@ namespace Icons
 		for (const auto& list : lists) {
 			LoadAtlas(list);
 		}
-		logs::info("Icon database: {} atlases, {} forms, {} named, {} pictures", atlases.size(), byForm.size(), named.size(), choices.size());
+		LoadSpellHotbar2Atlases();
+		logs::info("Icon database: {} atlases, {} forms, {} from SpellHotbar2 icon packs, {} named, {} pictures", atlases.size(), byForm.size(),
+			bySpellHotbar2.size(), named.size(), choices.size());
 
 		if (const auto j = Config::ReadJsonFile(CustomPath()); j && j->contains("icons") && (*j)["icons"].is_object()) {
 			for (const auto& [formKey, iconKey] : (*j)["icons"].items()) {
@@ -323,9 +423,11 @@ namespace Icons
 			return Named("UNKNOWN");
 		}
 		const auto style = Config::Get().iconStyle;
-		if (style != cacheStyle) {
+		const bool spellHotbar2 = Config::Get().spellHotbar2Icons;
+		if (style != cacheStyle || spellHotbar2 != cacheSpellHotbar2) {
 			cache.clear();
 			cacheStyle = style;
+			cacheSpellHotbar2 = spellHotbar2;
 		}
 		const auto id = a_form->GetFormID();
 		if (const auto it = cache.find(id); it != cache.end()) {
@@ -337,6 +439,8 @@ namespace Icons
 			icon = byKey[custom->second];
 		} else if (const auto inventory = InventoryIcon(a_form, style, final); inventory.Valid()) {
 			icon = inventory;
+		} else if (const auto sh2 = bySpellHotbar2.find(id); spellHotbar2 && sh2 != bySpellHotbar2.end()) {
+			icon = sh2->second;
 		} else if (const auto it = byForm.find(id); it != byForm.end()) {
 			icon = it->second;
 		} else if (ItemIcons::Supports(a_form)) {
@@ -380,7 +484,13 @@ namespace Icons
 
 	bool HasOwnIcon(RE::TESForm* a_form)
 	{
-		return a_form && (byForm.contains(a_form->GetFormID()) || ItemIcons::Supports(a_form));
+		return a_form && (byForm.contains(a_form->GetFormID()) || ItemIcons::Supports(a_form) ||
+							 (Config::Get().spellHotbar2Icons && bySpellHotbar2.contains(a_form->GetFormID())));
+	}
+
+	std::size_t SpellHotbar2IconCount()
+	{
+		return bySpellHotbar2.size();
 	}
 
 	std::string CustomKey(RE::TESForm* a_form)

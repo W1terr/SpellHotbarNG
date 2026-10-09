@@ -8,4 +8,8 @@ namespace UI
 
 	// A framework window that pauses the game is open (the settings menu)
 	bool IsBlockingWindowOpen();
+
+	// The settings preview shows the bars where they sit in the inventory / magic menus (the player last edited that
+	// position), not where they sit in game
+	bool PreviewMenuPosition();
 }

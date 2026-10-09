@@ -48,6 +48,10 @@ namespace CastAnim
 		constexpr float kDrawGrace = 1.5f;
 		float           sinceDraw{ kLongAgo };  // seconds since the weapon was last drawing / sheathing
 
+		// The same after a weapon attack was stopped for a cast (option "Cast during attacks")
+		constexpr float kAttackStopGrace = 0.5f;
+		float           sinceAttackStop{ kLongAgo };
+
 		// Release clip lengths from animation replacer timing files: (first person, type, side) -> seconds.
 		// Side 0 entries apply to every side.
 		std::map<std::tuple<bool, int, int>, float> timings;
@@ -380,7 +384,7 @@ namespace CastAnim
 		// a release / stop animation of ours, or a weapon draw / sheathe, is still playing or blending out
 		bool Busy()
 		{
-			return lingering || sinceStop < kRefusalGrace || sinceDraw < kDrawGrace;
+			return lingering || sinceStop < kRefusalGrace || sinceDraw < kDrawGrace || sinceAttackStop < kAttackStopGrace;
 		}
 
 		void UpdateDrawTimer(float a_delta)
@@ -560,9 +564,15 @@ namespace CastAnim
 		Linger(CurrentReleaseDuration(), false);
 	}
 
+	void AttackStopped()
+	{
+		sinceAttackStop = 0.0f;
+	}
+
 	void Update(float a_delta)
 	{
 		sinceStop = std::min(sinceStop + a_delta, kLongAgo);
+		sinceAttackStop = std::min(sinceAttackStop + a_delta, kLongAgo);
 		UpdateDrawTimer(a_delta);
 		UpdateHandArt(a_delta);
 		RestoreSyncIdleLocomotion();  // the graph picked the shout's start state during the last update

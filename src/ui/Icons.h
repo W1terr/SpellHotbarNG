@@ -42,11 +42,17 @@ namespace Icons
 		std::string name;   // shown name
 		std::string group;  // atlas it comes from ("vanilla_spells", a spell pack...)
 		Icon        icon;
+		bool        spellHotbar2{ false };  // from an icon pack made for SpellHotbar2
 	};
 	const std::vector<Choice>& Choices();
 
 	// The form has an icon of its own (from an icon list or its model), not a generic one
 	bool HasOwnIcon(RE::TESForm* a_form);
+
+	// Loaded forms with a picture in an icon pack made for SpellHotbar2 (Data\SKSE\Plugins\SpellHotbar\images). Those
+	// pictures are also in Choices() (key "sh2:<list>:<Plugin>|<FormID>"); Settings::spellHotbar2Icons makes them the
+	// forms' own icons.
+	std::size_t SpellHotbar2IconCount();
 
 	// Icon key the player picked for the form, empty if none
 	std::string CustomKey(RE::TESForm* a_form);

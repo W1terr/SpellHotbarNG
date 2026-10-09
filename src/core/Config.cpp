@@ -156,7 +156,15 @@ namespace Config
 		j["showCooldownText"] = s.showCooldownText;
 		j["showItemCount"] = s.showItemCount;
 		j["showInMenus"] = s.showInMenus;
+		j["menuPosition"] = s.menuPosition;
+		j["menuAnchor"] = static_cast<int>(s.menuAnchor);
+		j["menuOffsetX"] = s.menuOffsetX;
+		j["menuOffsetY"] = s.menuOffsetY;
+		j["menuReadyAnchor"] = static_cast<int>(s.menuReadyAnchor);
+		j["menuReadyOffsetX"] = s.menuReadyOffsetX;
+		j["menuReadyOffsetY"] = s.menuReadyOffsetY;
 		j["iconStyle"] = static_cast<int>(s.iconStyle);
+		j["spellHotbar2Icons"] = s.spellHotbar2Icons;
 		auto& colors = j["colors"];
 		for (const auto& [key, member] : kColorFields) {
 			colors[key] = s.colors.*member;
@@ -174,6 +182,9 @@ namespace Config
 		j["onlyWhileSneaking"] = s.onlyWhileSneaking;
 		j["aimAtCrosshair"] = s.aimAtCrosshair;
 		j["individualShoutCooldowns"] = s.individualShoutCooldowns;
+		j["castDuringAttacks"] = s.castDuringAttacks;
+		j["unfavoriteRemoves"] = s.unfavoriteRemoves;
+		j["bindInFavorites"] = s.bindInFavorites;
 
 		j["keyMode"] = static_cast<int>(s.keyMode);
 		j["castKey"] = s.castKey;
@@ -210,7 +221,15 @@ namespace Config
 		Read(j, "showCooldownText", s.showCooldownText);
 		Read(j, "showItemCount", s.showItemCount);
 		Read(j, "showInMenus", s.showInMenus);
+		Read(j, "menuPosition", s.menuPosition);
+		Read(j, "menuAnchor", s.menuAnchor);
+		Read(j, "menuOffsetX", s.menuOffsetX);
+		Read(j, "menuOffsetY", s.menuOffsetY);
+		Read(j, "menuReadyAnchor", s.menuReadyAnchor);
+		Read(j, "menuReadyOffsetX", s.menuReadyOffsetX);
+		Read(j, "menuReadyOffsetY", s.menuReadyOffsetY);
 		Read(j, "iconStyle", s.iconStyle);
+		Read(j, "spellHotbar2Icons", s.spellHotbar2Icons);
 		if (const auto colors = j.find("colors"); colors != j.end() && colors->is_object()) {
 			for (const auto& [key, member] : kColorFields) {
 				ReadArray(*colors, key, s.colors.*member);
@@ -235,6 +254,9 @@ namespace Config
 		Read(j, "onlyWhileSneaking", s.onlyWhileSneaking);
 		Read(j, "aimAtCrosshair", s.aimAtCrosshair);
 		Read(j, "individualShoutCooldowns", s.individualShoutCooldowns);
+		Read(j, "castDuringAttacks", s.castDuringAttacks);
+		Read(j, "unfavoriteRemoves", s.unfavoriteRemoves);
+		Read(j, "bindInFavorites", s.bindInFavorites);
 
 		Read(j, "keyMode", s.keyMode);
 		Read(j, "castKey", s.castKey);
@@ -263,6 +285,8 @@ namespace Config
 		s.iconStyle = static_cast<IconStyle>(std::clamp(static_cast<int>(s.iconStyle), 0, 2));
 		s.mainBarKeyMode = static_cast<MainBarKeyMode>(std::clamp(static_cast<int>(s.mainBarKeyMode), 0, 2));
 		s.readyAnchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.readyAnchor), 0, 8));
+		s.menuAnchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.menuAnchor), 0, 8));
+		s.menuReadyAnchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.menuReadyAnchor), 0, 8));
 		for (const auto& [key, member] : kColorFields) {
 			for (auto& channel : s.colors.*member) {
 				channel = std::clamp(channel, 0.0f, 1.0f);
