@@ -4,6 +4,7 @@
 #include "casting/PlayerControl.h"
 #include "casting/ShoutCooldowns.h"
 #include "casting/SpellCharges.h"
+#include "casting/StrangeRunes.h"
 #include "casting/VanillaCast.h"
 #include "core/Util.h"
 
@@ -381,6 +382,7 @@ namespace Actions
 			StopSound(cast->chargeSound);
 			StopSound(cast->loopSound);
 			CastAnim::StopHandArt();
+			StrangeRunes::Stop();
 			cast.reset();
 		}
 
@@ -570,6 +572,7 @@ namespace Actions
 				CastAnim::StartHandArt(a_item, side, concentration ? 120.0f : next.chargeTotal + 0.5f);
 			}
 			cast = std::move(next);
+			StrangeRunes::Start(a_item, side, a_scroll != nullptr);
 
 			if (cast->chargeTotal > 0.0f) {
 				PlayEffectSound(a_item, RE::MagicSystem::SoundID::kCharge, &cast->chargeSound);
@@ -848,6 +851,7 @@ namespace Actions
 		ShoutCooldowns::Update();  // before VanillaCast presses the Shout button for a just equipped shout
 		VanillaCast::Update(a_delta);
 		CastAnim::Update(a_delta);
+		StrangeRunes::Update(a_delta);
 
 		// A press while the bar is busy (charging, recovery, release animation playing / blending out) is used as
 		// soon as it's free. Use() queues it again while the animation still blocks.
@@ -948,6 +952,7 @@ namespace Actions
 		VanillaCast::Reset();
 		CastAnim::Reset();
 		ShoutCooldowns::Reset();
+		StrangeRunes::Reset();
 		queued.reset();
 		cast.reset();
 		gcdRemaining = gcdTotal = 0.0f;
