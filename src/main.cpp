@@ -1,9 +1,11 @@
 #include "casting/Actions.h"
 #include "core/Bindings.h"
 #include "casting/CastAnim.h"
+#include "casting/FirstPersonArms.h"
 #include "casting/Replacers.h"
 #include "casting/SpellCharges.h"
 #include "core/Config.h"
+#include "core/GridInventory.h"
 #include "ui/Icons.h"
 #include "core/Input.h"
 #include "ui/ItemIcons.h"
@@ -36,6 +38,10 @@ namespace
 		case SKSE::MessagingInterface::kPostLoad:
 			CastAnim::RegisterCondition();
 			break;
+		case SKSE::MessagingInterface::kPostPostLoad:
+			FirstPersonArms::Install();       // after camera mods hooked the same call at their load
+			GridInventory::OfferExtension();  // after the kPostLoad registrations of real Grid Inventory extensions
+			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			{
 				std::scoped_lock lock(Config::Lock());
@@ -65,7 +71,7 @@ namespace
 
 SKSE_PLUGIN_LOAD(const SKSE::LoadInterface* a_skse)
 {
-	SKSE::Init(a_skse);
+	SKSE::Init(a_skse, { .trampoline = true, .trampolineSize = 64 });
 	logs::info("Spell Hotbar NG loading");
 
 	Replacers::Generate();  // before OAR reads its folders (kInputLoaded)

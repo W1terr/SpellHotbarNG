@@ -1,6 +1,7 @@
 #include "ui/ItemIcons.h"
 
 #include "core/Config.h"
+#include "core/GridInventory.h"
 #include "ui/Framework.h"
 #include "ui/InventoryIcons.h"
 
@@ -563,6 +564,43 @@ namespace ItemIcons
 			}
 		}
 
+		// ---- Grid Inventory's pictures ---------------------------------------------------------------
+
+		struct GridEntry
+		{
+			void*                                 texture{ nullptr };
+			bool                                  failed{ false };
+			std::chrono::steady_clock::time_point nextTry{};
+		};
+		std::unordered_map<std::uint32_t, GridEntry> byGridSlot;  // Grid Inventory's picture slot -> icon
+		constexpr auto                               kGridRetry = 2s;  // not photographed by Grid Inventory yet: look again
+
+		// Grid Inventory's picture of the item, saved as item_icons\grid\<slot>.dds once per game session
+		void* GridPicture(RE::TESForm* a_form)
+		{
+			const auto slot = GridInventory::PictureSlot(a_form);
+			auto&      entry = byGridSlot[slot];
+			if (entry.texture || entry.failed) {
+				return entry.texture;
+			}
+			const auto now = std::chrono::steady_clock::now();
+			if (now < entry.nextTry) {
+				return nullptr;
+			}
+			entry.nextTry = now + kGridRetry;
+			std::vector<std::uint8_t> bgra;
+			if (!GridInventory::Picture(a_form, kIconSize, bgra)) {
+				return nullptr;
+			}
+			const auto path = (Dir() / "grid" / std::format("{:08x}.dds", slot)).string();
+			entry.texture = WriteDDS(path, bgra, kIconSize) ? SKSEMenuFramework::LoadTexture(path) : nullptr;
+			entry.failed = !entry.texture;
+			if (entry.failed) {
+				logs::warn("Item icons: could not use Grid Inventory's picture of {}", a_form->GetName());
+			}
+			return entry.texture;
+		}
+
 		void EndOwnScene(RE::Inventory3DManager* a_inv)
 		{
 			a_inv->UnloadInventoryItem();
@@ -592,6 +630,18 @@ namespace ItemIcons
 
 			const auto inv = RE::Inventory3DManager::GetSingleton();
 			if (!inv) {
+				return;
+			}
+			// Grid Inventory draws its own item pictures with the 3D view: hands off it while its window is open (a
+			// model photo of ours that was going on is put back in the queue)
+			if (GridInventory::MenuOpen()) {
+				if (job) {
+					if (job->ownScene) {
+						EndOwnScene(inv);
+					}
+					queue.emplace_front(job->key, job->form);
+					job.reset();
+				}
 				return;
 			}
 			const bool gameMenu = GameMenuOwns3D();
@@ -758,6 +808,9 @@ namespace ItemIcons
 			return nullptr;
 		}
 		std::scoped_lock guard(lock);
+		if (GridInventory::Installed()) {
+			return GridPicture(a_form);  // the 3D view is Grid Inventory's: its own pictures of the items
+		}
 		const auto& key = KeyOf(a_form);
 		if (key.empty()) {
 			return nullptr;

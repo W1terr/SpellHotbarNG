@@ -62,6 +62,9 @@ namespace CastAnim
 	void Release();  // release animation
 	void Stop();     // cancel / end of concentration
 
+	// A hotbar casting animation is playing (from the start until the release animation is over). Any thread.
+	bool Playing();
+
 	// A weapon attack was just stopped for a cast: for a moment a refused start waits for the graph to leave the
 	// attack instead of casting without animation
 	void AttackStopped();

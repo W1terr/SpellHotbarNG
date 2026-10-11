@@ -564,6 +564,11 @@ namespace CastAnim
 		Linger(CurrentReleaseDuration(), false);
 	}
 
+	bool Playing()
+	{
+		return current.load() != 0;
+	}
+
 	void AttackStopped()
 	{
 		sinceAttackStop = 0.0f;

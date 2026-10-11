@@ -2,6 +2,7 @@
 
 #include "casting/Actions.h"
 #include "core/Bindings.h"
+#include "core/GridInventory.h"
 #include "core/Keys.h"
 #include "core/Util.h"
 #include "ui/UI.h"
@@ -293,6 +294,11 @@ namespace Input
 		if (mode == Mode::kNone || (!IsReadySlot(slot) && !MainBarUsable(mode))) {
 			return false;
 		}
+		// Grid Inventory's window: a slot key binds the item under the mouse; with none there it may be typing
+		// (search box), so the key stays Grid Inventory's
+		if (mode == Mode::kBind && button->IsDown() && GridInventory::MenuOpen() && !GridInventory::Hovered()) {
+			return false;
+		}
 
 		if (button->IsDown()) {
 			OnDown(slot, key, mode);
@@ -394,7 +400,7 @@ namespace Input
 			return false;  // a vampire lord can open the Magic menu, but the hotbar is off in beast form
 		}
 		// Favorites menu only with "Bind in the Favorites menu": otherwise its number keys set the game's own hotkeys
-		return ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) ||
+		return ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || GridInventory::MenuOpen() ||
 		       (Config::Get().bindInFavorites && ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME));
 	}
 
@@ -403,6 +409,10 @@ namespace Input
 		const auto ui = RE::UI::GetSingleton();
 		if (!ui) {
 			return nullptr;
+		}
+
+		if (GridInventory::MenuOpen()) {
+			return GridInventory::Hovered();
 		}
 
 		if (const auto menu = ui->GetMenu<RE::MagicMenu>(); menu && menu->uiMovie) {

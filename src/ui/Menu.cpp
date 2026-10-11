@@ -506,9 +506,10 @@ namespace UI
 				 "Each shout slot shows its own cooldown, and it carries over when you save and load.\n"
 				 "Off: one cooldown for all shouts, like the base game.");
 			Changed(Checkbox(Id("Cast during weapon attacks", "castDuringAttacks").c_str(), &s.castDuringAttacks));
-			Help("On: a spell, scroll, power or shout cast right away from the bar stops your weapon\n"
-				 "attack (swing, power attack, bash) and is cast at once, so you can cancel attacks with it.\n"
-				 "Off: the bar's magic can't be used while you attack, like in the base game.");
+			Help("On: a spell, scroll, power or shout cast right away from the bar can be used during a weapon\n"
+				 "attack (swing, power attack, bash) and takes over from it, like the game's Shout key does,\n"
+				 "so you can cancel attacks with it.\n"
+				 "Off: the bar's magic can't be used while you attack.");
 			Changed(Checkbox(Id("Bind in the Favorites menu", "bindInFavorites").c_str(), &s.bindInFavorites));
 			Help("On: in the Favorites menu, pressing a slot key puts the selected favorite on the bar,\n"
 				 "like in the Magic and Inventory menus.\n"

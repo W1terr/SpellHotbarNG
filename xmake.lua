@@ -3,7 +3,7 @@ includes("lib/commonlibsse-ng")
 
 -- set project constants
 set_project("SpellHotbarNG")
-set_version("1.9.0")
+set_version("1.9.1")
 set_license("GPL-3.0")
 set_languages("c++23")
 set_warnings("allextra")
@@ -35,3 +35,7 @@ target("SpellHotbarNG")
     add_files("lib/OpenAnimationReplacer/*.cpp")
     add_headerfiles("lib/OpenAnimationReplacer/*.h")
     add_includedirs("lib/OpenAnimationReplacer")
+
+    -- Grid Inventory extension ABI (header only, vendored verbatim)
+    add_headerfiles("lib/GridInventory/*.h")
+    add_includedirs("lib/GridInventory")

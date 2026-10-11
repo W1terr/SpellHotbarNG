@@ -100,7 +100,8 @@ namespace Actions
 			if (state->IsSwimming()) {
 				return "swimming";
 			}
-			if (state->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone) {
+			// option "Cast during attacks": the cast goes over the attack, like the game's own Shout key does
+			if (state->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone && !Config::Get().castDuringAttacks) {
 				return kAttacking;
 			}
 			const auto weapon = state->GetWeaponState();
@@ -115,9 +116,16 @@ namespace Actions
 			return !CastBlocker();
 		}
 
-		// Option "Cast during attacks": a hotbar cast ends the player's weapon swing / power attack / bash right away.
-		// The attack behaviors leave their attack state on these events; the game's own attack state is cleared here
-		// because the swing clip that would end it never finishes. Casting waits a moment for the graph (CastAnim).
+		bool Attacking()
+		{
+			const auto player = Player();
+			return player && player->AsActorState()->GetAttackState() != RE::ATTACK_STATE_ENUM::kNone;
+		}
+
+		// Option "Cast during attacks", when the behavior graph didn't take the casting animation over the attack: the
+		// attack is ended the way the game ends one (its own function, used when a weapon is swapped mid-swing: the
+		// "attackStop" action, a drawn bow put down properly, the attack state cleared). SE has no address for it here:
+		// the graph event and the state by hand. The cast waits a moment for the graph (CastAnim).
 		void StopAttack()
 		{
 			const auto player = Player();
@@ -125,9 +133,15 @@ namespace Actions
 			if (!retrying) {
 				logs::info("Stopping the attack (state {}) for a hotbar cast", static_cast<int>(state->GetAttackState()));
 			}
-			player->NotifyAnimationGraph("attackStop"sv);
-			player->NotifyAnimationGraph("PowerAttackStop"sv);
-			state->actorState1.meleeAttackState = RE::ATTACK_STATE_ENUM::kNone;
+			if (REL::Module::IsAE()) {
+				using func_t = void (*)(RE::Actor*);
+				static REL::Relocation<func_t> interruptAttack{ REL::ID(38543) };
+				interruptAttack(player);
+			} else {
+				player->NotifyAnimationGraph("attackStop"sv);
+				player->NotifyAnimationGraph("PowerAttackStop"sv);
+				state->actorState1.meleeAttackState = RE::ATTACK_STATE_ENUM::kNone;
+			}
 			CastAnim::AttackStopped();
 		}
 
@@ -561,6 +575,13 @@ namespace Actions
 					Queue(a_page, a_slot, a_key, a_keyHeld);
 					return;
 				case CastAnim::StartResult::kRefused:
+					if (Attacking() && Config::Get().castDuringAttacks) {
+						// this attack can't be cast over: end it, cast right after (with animation)
+						StopAttack();
+						LogPress(a_slot, a_item, "waits, the attack is being stopped");
+						Queue(a_page, a_slot, a_key, a_keyHeld);
+						return;
+					}
 					logs::info("Casting animation refused for {}, casting without it", a_item->GetName());
 					next.animated = false;
 					break;
@@ -788,12 +809,7 @@ namespace Actions
 		}
 
 		const bool magic = form->Is(RE::FormType::Spell) || form->Is(RE::FormType::Scroll) || form->Is(RE::FormType::Shout);
-		auto       blocker = magic ? CastBlocker() : nullptr;
-		if (blocker == kAttacking && Config::Get().castDuringAttacks) {
-			StopAttack();
-			blocker = CastBlocker();
-		}
-		if (blocker) {
+		if (const auto blocker = magic ? CastBlocker() : nullptr) {
 			// a draw / sheathe (also the draw after summoning a bound weapon) only takes a moment: the press waits for it
 			if (blocker == kDrawingOrSheathing) {
 				LogPress(a_slot, form, "waits, drawing / sheathing");

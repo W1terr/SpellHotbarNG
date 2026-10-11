@@ -9,6 +9,9 @@
 // the inventory's 3D item. While the inventory (or another menu with a 3D item view) is open, only the item it shows is
 // photographed; otherwise the model is loaded into the 3D view, captured and unloaded again.
 //
+// With Grid Inventory installed the 3D view is left to it: the pictures come from its icon cache (GridInventory.h),
+// saved in item_icons\grid.
+//
 // The same menu also draws SkyUI's inventory icons (MenuIcon).
 namespace ItemIcons
 {
