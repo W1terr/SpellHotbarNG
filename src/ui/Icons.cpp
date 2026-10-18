@@ -460,6 +460,24 @@ namespace Icons
 		return icon;
 	}
 
+	Icon MenuPicture(RE::TESForm* a_form)
+	{
+		if (!a_form) {
+			return {};
+		}
+		const auto id = a_form->GetFormID();
+		if (const auto custom = customByForm.find(id); custom != customByForm.end()) {
+			if (const auto it = byKey.find(custom->second); it != byKey.end() && it->second.atlas >= 0) {
+				return it->second;
+			}
+		}
+		if (const auto sh2 = bySpellHotbar2.find(id); Config::Get().spellHotbar2Icons && sh2 != bySpellHotbar2.end()) {
+			return sh2->second;
+		}
+		const auto it = byForm.find(id);
+		return it != byForm.end() ? it->second : Icon{};
+	}
+
 	Icon Named(std::string_view a_name, bool a_nordic)
 	{
 		const std::string key(a_name);

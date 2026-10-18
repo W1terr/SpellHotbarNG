@@ -165,6 +165,7 @@ namespace Config
 		j["menuReadyOffsetY"] = s.menuReadyOffsetY;
 		j["iconStyle"] = static_cast<int>(s.iconStyle);
 		j["spellHotbar2Icons"] = s.spellHotbar2Icons;
+		j["magicMenuIcons"] = s.magicMenuIcons;
 		auto& colors = j["colors"];
 		for (const auto& [key, member] : kColorFields) {
 			colors[key] = s.colors.*member;
@@ -230,6 +231,7 @@ namespace Config
 		Read(j, "menuReadyOffsetY", s.menuReadyOffsetY);
 		Read(j, "iconStyle", s.iconStyle);
 		Read(j, "spellHotbar2Icons", s.spellHotbar2Icons);
+		Read(j, "magicMenuIcons", s.magicMenuIcons);
 		if (const auto colors = j.find("colors"); colors != j.end() && colors->is_object()) {
 			for (const auto& [key, member] : kColorFields) {
 				ReadArray(*colors, key, s.colors.*member);

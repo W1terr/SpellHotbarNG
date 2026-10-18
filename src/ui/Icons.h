@@ -28,6 +28,10 @@ namespace Icons
 	// model once it's made (ItemIcons).
 	Icon ForForm(RE::TESForm* a_form);
 
+	// The form's own atlas picture for the Magic menu (MagicMenuIcons): the one the player picked, else a SpellHotbar2 icon
+	// pack's (if Settings::spellHotbar2Icons), else ours. No generic, SkyUI or model pictures: invalid then.
+	Icon MenuPicture(RE::TESForm* a_form);
+
 	// UI and fallback icons: BAR_EMPTY, BAR_OVERLAY, BAR_HIGHLIGHT, UNKNOWN, ...
 	Icon Named(std::string_view a_name, bool a_nordic = false);
 

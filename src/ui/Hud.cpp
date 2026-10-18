@@ -6,6 +6,7 @@
 #include "ui/Icons.h"
 #include "core/Input.h"
 #include "ui/ItemIcons.h"
+#include "ui/MagicMenuIcons.h"
 #include "core/Keys.h"
 #include "core/Lang.h"
 #include "core/Util.h"
@@ -337,6 +338,7 @@ namespace UI
 		UpdatePageNames();
 		Config::SaveIfDirty();
 		ItemIcons::Update();
+		MagicMenuIcons::Update();
 
 		const auto ctx = GetContext();
 		if (!ctx) {

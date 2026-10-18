@@ -827,6 +827,14 @@ namespace UI
 			 "in Data\\SKSE\\Plugins\\SpellHotbar\\images.\n"
 			 "On: a spell, power or shout one of these packs has a picture for shows that picture on the bar.\n"
 			 "Off: the bar's own icons. Either way, Change below lets you pick any of their pictures.");
+
+		Changed(Checkbox(Id("Show these icons in the Magic menu", "magicMenuIcons").c_str(), &s.magicMenuIcons));
+		Help("Like SpellHotbar2: spells, powers and shouts that have a picture of their own here\n"
+			 "(the one you picked, an icon pack's or the bar's) show it in the Magic menu instead of SkyUI's icon.\n"
+			 "The others keep SkyUI's icons. Needs SkyUI; works together with Inventory Interface Information Injector.");
+		if (s.magicMenuIcons && InventoryIcons::MoviePath().empty()) {
+			TextColored(kGold, "%s", T("SkyUI is not installed, so the Magic menu keeps its icons."));
+		}
 		const bool packPictures = std::ranges::any_of(Icons::Choices(), [](const Icons::Choice& a_choice) { return a_choice.spellHotbar2; });
 		if (const auto count = Icons::SpellHotbar2IconCount(); count > 0) {
 			TextDisabled("%s", F("{} spells, powers and shouts have a picture in a SpellHotbar2 icon pack.", count).c_str());

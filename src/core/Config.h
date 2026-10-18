@@ -109,6 +109,7 @@ struct Settings
 	float      menuReadyOffsetY{ -110.0f };
 	IconStyle  iconStyle{ IconStyle::kOwn };
 	bool       spellHotbar2Icons{ true };  // icon packs made for SpellHotbar2 (Data\SKSE\Plugins\SpellHotbar\images) win over ours
+	bool       magicMenuIcons{ false };    // spells, powers and shouts show their bar picture in SkyUI's Magic menu (MagicMenuIcons)
 	BarColors  colors{};
 
 	// keys

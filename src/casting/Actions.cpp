@@ -56,6 +56,7 @@ namespace Actions
 		constexpr float kPotionCooldown = 0.5f;     // between two potions (food and poisons have none)
 		constexpr float kTurnSpeed = 10.0f;         // radians per second the character turns to the camera while charging
 		constexpr auto  kCostCacheTime = 250ms;     // how long the HUD's magicka costs are reused
+		constexpr float kDualStateLinger = 0.25f;   // the actor stays "dual casting" this long after a dual cast ended
 
 		// a slot pressed while the previous cast was still charging / recovering
 		struct Queued
@@ -68,6 +69,7 @@ namespace Actions
 		};
 		std::optional<Queued> queued;
 		bool                  retrying{ false };  // Update is trying a queued press again (logged once, at the press)
+		float                 dualStateClear{ -1.0f };  // seconds until the actor's dual casting state is cleared (< 0: nothing to clear)
 		float                 airTime{ 0.0f };    // how long the player has been in the air
 
 		RE::PlayerCharacter* Player()
@@ -252,43 +254,46 @@ namespace Actions
 			return false;
 		}
 
-		// The vanilla "<school> Dual Casting" perks
-		RE::BGSPerk* DualCastPerk(RE::ActorValue a_school)
+		// What the game asks before the player dual casts: a perk with the "Can Dual Cast Spell" entry point (the
+		// vanilla "<school> Dual Casting" perks, or whatever a perk overhaul uses instead). The HUD asks for every
+		// slot every frame, so the answer is reused for kCostCacheTime.
+		bool CanDualCast(RE::MagicItem* a_item)
 		{
-			static const auto perks = [] {
-				const auto lookup = [](RE::FormID a_id) { return RE::TESForm::LookupByID<RE::BGSPerk>(a_id); };
-				return std::array{ lookup(0x000153CD), lookup(0x000153CE), lookup(0x000153CF), lookup(0x000153D0), lookup(0x000153D1) };
-			}();
-			switch (a_school) {
-			case RE::ActorValue::kAlteration:
-				return perks[0];
-			case RE::ActorValue::kConjuration:
-				return perks[1];
-			case RE::ActorValue::kDestruction:
-				return perks[2];
-			case RE::ActorValue::kIllusion:
-				return perks[3];
-			case RE::ActorValue::kRestoration:
-				return perks[4];
-			default:
-				return nullptr;
-			}
-		}
+			struct Cached
+			{
+				bool                                  can;
+				std::chrono::steady_clock::time_point time;
+			};
+			static std::unordered_map<RE::FormID, Cached> answers;
 
-		bool HasDualCastPerk(RE::MagicItem* a_item)
-		{
-			const auto effect = a_item->GetCostliestEffectItem();
-			const auto base = effect ? effect->baseEffect : nullptr;
-			const auto perk = base ? DualCastPerk(base->GetMagickSkill()) : nullptr;
-			return perk && Player()->HasPerk(perk);
+			const auto now = std::chrono::steady_clock::now();
+			auto&      entry = answers[a_item->GetFormID()];
+			if (entry.time == std::chrono::steady_clock::time_point{} || now - entry.time > kCostCacheTime) {
+				float result = 0.0f;
+				RE::BGSEntryPoint::HandleEntryPoint(RE::BGSEntryPoint::ENTRY_POINT::kCanDualCastSpell, Player(), a_item, &result);
+				entry = { result != 0.0f, now };
+			}
+			return entry.can;
 		}
 
 		bool WantsDualCast(RE::MagicItem* a_item, Hand a_hand)
 		{
-			if (a_hand != Hand::kBoth || !a_item || a_item->GetNoDualCastModifications()) {
+			if (a_hand != Hand::kBoth || !a_item || a_item->GetSpellType() != SpellType::kSpell || a_item->GetNoDualCastModifications()) {
 				return false;
 			}
-			return HasDualCastPerk(a_item);
+			return CanDualCast(a_item);
+		}
+
+		// The actor's "is dual casting" state (HighProcessData), which the game sets when a dual cast starts and clears
+		// when it's finished. Hotbar casts don't go through that, but mods read it (IsDualCasting condition,
+		// Actor::IsDualCasting in SKSE plugins such as Animated Bound Weapons).
+		void SetActorDualCasting(bool a_dual)
+		{
+			const auto player = Player();
+			const auto process = player ? player->GetActorRuntimeData().currentProcess : nullptr;
+			if (process && process->high) {
+				process->high->isDualCasting = a_dual;
+			}
 		}
 
 		// "Both" without the dual casting perk (or for spells without dual cast effects): the spell is cast from each
@@ -397,6 +402,10 @@ namespace Actions
 			StopSound(cast->loopSound);
 			CastAnim::StopHandArt();
 			StrangeRunes::Stop();
+			if (cast->dual) {
+				// not right away: spell cast events and effects of the cast may still be on their way
+				dualStateClear = kDualStateLinger;
+			}
 			cast.reset();
 		}
 
@@ -594,6 +603,10 @@ namespace Actions
 			}
 			cast = std::move(next);
 			StrangeRunes::Start(a_item, side, a_scroll != nullptr);
+			if (cast->dual || dualStateClear >= 0.0f) {
+				SetActorDualCasting(cast->dual);
+				dualStateClear = -1.0f;
+			}
 
 			if (cast->chargeTotal > 0.0f) {
 				PlayEffectSound(a_item, RE::MagicSystem::SoundID::kCharge, &cast->chargeSound);
@@ -864,6 +877,12 @@ namespace Actions
 		} else {
 			airTime = 0.0f;
 		}
+		if (dualStateClear >= 0.0f) {
+			dualStateClear -= a_delta;
+			if (dualStateClear < 0.0f) {
+				SetActorDualCasting(false);
+			}
+		}
 		ShoutCooldowns::Update();  // before VanillaCast presses the Shout button for a just equipped shout
 		VanillaCast::Update(a_delta);
 		CastAnim::Update(a_delta);
@@ -971,6 +990,7 @@ namespace Actions
 		StrangeRunes::Reset();
 		queued.reset();
 		cast.reset();
+		dualStateClear = -1.0f;
 		gcdRemaining = gcdTotal = 0.0f;
 		potionRemaining = potionTotal = 0.0f;
 	}
