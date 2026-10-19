@@ -15,7 +15,7 @@ namespace Util
 	// The player rides a horse (or a dragon), also while getting on / off: the hotbar is off meanwhile
 	bool OnMount();
 
-	// Beast form or riding: hotbar keys go to the game, the bar fades out, magic can't be used. Binding in menus
-	// stays possible while riding.
+	// Beast form or riding: hotbar keys go to the game and magic can't be used; the bar stays in view. Binding in
+	// menus stays possible while riding.
 	bool HotbarOff();
 }

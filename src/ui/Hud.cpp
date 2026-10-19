@@ -128,14 +128,15 @@ namespace UI
 					return std::nullopt;
 				}
 				if (MenuOpen(RE::DialogueMenu::MENU_NAME) || MenuOpen(RE::MapMenu::MENU_NAME) || MenuOpen(RE::BookMenu::MENU_NAME) ||
-					MenuOpen(RE::LockpickingMenu::MENU_NAME) || MenuOpen(RE::Console::MENU_NAME) || MenuOpen(RE::FavoritesMenu::MENU_NAME)) {
+					MenuOpen(RE::LockpickingMenu::MENU_NAME) || MenuOpen(RE::Console::MENU_NAME) || MenuOpen(RE::FavoritesMenu::MENU_NAME) ||
+					MenuOpen(RE::CraftingMenu::MENU_NAME)) {
 					return std::nullopt;
 				}
 
 				const bool combat = player->IsInCombat();
 				const bool drawn = player->AsActorState()->IsWeaponDrawn();
-				// the hotbar is off in beast form and while riding: the bar fades out like with "Never"
-				switch (Util::HotbarOff() ? Visibility::kNever : settings.visibility) {
+				// beast form and riding (Util::HotbarOff) don't hide the bar: it stays in view, only its keys are off
+				switch (settings.visibility) {
 				case Visibility::kNever:
 					ctx.visible = false;
 					break;
