@@ -125,7 +125,9 @@ def submod_config(folder: str, description: str, type_id: int, hand: int, move_p
         "name": folder,
         "description": f"Spell Hotbar NG casting animation: {description}" + (
             {0: "", 1: " (1st person, moving, charge)", 2: " (1st person, moving, release)", 3: " (1st person, moving, after the release)"}[move_phase]),
-        "priority": 2140000000 + type_id * 10 + (hand != HAND_ANY),
+        # OAR warns about submods with the same priority replacing the same clip, so every submod gets its own:
+        # type, then hand specific above "any hand", then the 1st person move phase
+        "priority": 2140000000 + type_id * 100 + (hand != HAND_ANY) * 10 + move_phase,
         "interruptible": bool(move_phase),
         "conditions": [casting_condition(type_id, hand, shout_state=bool(move_phase), phase=move_phase)],
     }
