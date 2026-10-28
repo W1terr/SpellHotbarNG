@@ -143,6 +143,9 @@ namespace Config
 		j["iconSize"] = s.iconSize;
 		j["spacing"] = s.spacing;
 		j["slotOffsets"] = s.slotOffsets;
+		j["extraBarAlwaysShown"] = s.extraBarAlwaysShown;
+		j["extraBarScale"] = s.extraBarScale;
+		j["extraBarPlace"] = static_cast<int>(s.extraBarPlace);
 		j["anchor"] = static_cast<int>(s.anchor);
 		j["offsetX"] = s.offsetX;
 		j["offsetY"] = s.offsetY;
@@ -210,6 +213,9 @@ namespace Config
 		Read(j, "iconSize", s.iconSize);
 		Read(j, "spacing", s.spacing);
 		ReadArray(j, "slotOffsets", s.slotOffsets);
+		ReadArray(j, "extraBarAlwaysShown", s.extraBarAlwaysShown);
+		Read(j, "extraBarScale", s.extraBarScale);
+		Read(j, "extraBarPlace", s.extraBarPlace);
 		Read(j, "anchor", s.anchor);
 		Read(j, "offsetX", s.offsetX);
 		Read(j, "offsetY", s.offsetY);
@@ -285,6 +291,8 @@ namespace Config
 			offset[1] = std::clamp(offset[1], -kMaxSlotOffset, kMaxSlotOffset);
 		}
 		s.anchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.anchor), 0, 8));
+		s.extraBarScale = std::clamp(s.extraBarScale, 0.3f, 1.0f);
+		s.extraBarPlace = static_cast<ExtraBarPlace>(std::clamp(static_cast<int>(s.extraBarPlace), 0, 1));
 		s.opacity = std::clamp(s.opacity, 0.05f, 1.0f);
 		s.visibility = static_cast<Visibility>(std::clamp(static_cast<int>(s.visibility), 0, 6));
 		s.keyPressShowTime = std::clamp(s.keyPressShowTime, 0.5f, 10.0f);

@@ -21,6 +21,7 @@ namespace UI
 			"After pressing a hotbar key" };
 		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
 		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
+		constexpr const char* kExtraBarPlaceNames[] = { "Above the main bar", "Below the main bar" };  // order of ExtraBarPlace
 		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };  // order of Hand
 		constexpr const char* kKeyModeNames[] = { "Cast right away", "Equip", "Oblivion style" };       // order of KeyMode
 		constexpr const char* kPictureSourceNames[] = { "All", "Spell Hotbar NG", "SpellHotbar2 icon packs" };  // icon picker filter
@@ -320,6 +321,36 @@ namespace UI
 		if (Button(Id("Reset all slots", "resetSlotOffsets").c_str())) {
 			s.slotOffsets.fill({ 0.0f, 0.0f });
 			Changed(true);
+		}
+
+		SeparatorText(T("Extra bars on screen"));
+		TextWrapped("%s", T("Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. "
+							"Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place."));
+		bool anyExtraBar = false;
+		bool anyShown = false;
+		for (int i = 0; i < kModifierCount; ++i) {
+			if (!s.modifierEnabled[i]) {
+				continue;
+			}
+			anyExtraBar = true;
+			const auto label = std::format("{}###extraBarAlwaysShown{}", F("Always show extra bar {} ({})", i + 1, KeyLabel(s.modifierKeys[i])), i);
+			Changed(Checkbox(label.c_str(), &s.extraBarAlwaysShown[i]));
+			anyShown = anyShown || s.extraBarAlwaysShown[i];
+		}
+		if (!anyExtraBar) {
+			TextDisabled("%s", T("Turn on an extra bar in Bindings > Hotkeys first."));
+		} else if (anyShown) {
+			float percent = s.extraBarScale * 100.0f;
+			if (SliderFloat(Id("Size", "extraBarScale").c_str(), &percent, 30.0f, 100.0f, "%.0f %%")) {
+				s.extraBarScale = percent / 100.0f;
+				Changed(true);
+			}
+			const auto placeNames = Translated(kExtraBarPlaceNames);
+			int        place = static_cast<int>(s.extraBarPlace);
+			if (Combo(Id("Place", "extraBarPlace").c_str(), &place, placeNames.data(), static_cast<int>(placeNames.size()))) {
+				s.extraBarPlace = static_cast<ExtraBarPlace>(place);
+				Changed(true);
+			}
 		}
 
 		if (s.keyMode == KeyMode::kOblivion) {

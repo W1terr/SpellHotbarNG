@@ -214,5 +214,12 @@
   "Slot positions": "Pozycje slotów",
   "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "Przesuwaj pojedyncze sloty z ich miejsca na pasku. Podgląd zaznacza slot, który zmieniasz.",
   "Reset this slot": "Resetuj ten slot",
-  "Reset all slots": "Resetuj wszystkie sloty"
+  "Reset all slots": "Resetuj wszystkie sloty",
+  "Extra bars on screen": "Dodatkowe paski na ekranie",
+  "Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place.": "Zostaw dodatkowe paski na widoku jako mniejsze paski obok głównego, np. żeby widzieć odnowienie okrzyków. Przytrzymanie lub naciśnięcie klawisza dodatkowego paska przenosi go na przód, a główny pasek zajmuje jego małe miejsce.",
+  "Always show extra bar {} ({})": "Zawsze pokazuj dodatkowy pasek {} ({})",
+  "Turn on an extra bar in Bindings > Hotkeys first.": "Najpierw włącz dodatkowy pasek w Przypisania > Klawisze.",
+  "Place": "Miejsce",
+  "Above the main bar": "Nad głównym paskiem",
+  "Below the main bar": "Pod głównym paskiem"
 }

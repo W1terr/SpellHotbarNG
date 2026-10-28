@@ -214,5 +214,12 @@
   "Slot positions": "Platzpositionen",
   "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "Verschiebe einzelne Plätze weg von ihrer Stelle in der Leiste. Die Vorschau markiert den Platz, den du gerade änderst.",
   "Reset this slot": "Diesen Platz zurücksetzen",
-  "Reset all slots": "Alle Plätze zurücksetzen"
+  "Reset all slots": "Alle Plätze zurücksetzen",
+  "Extra bars on screen": "Zusatzleisten auf dem Bildschirm",
+  "Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place.": "Behalte Zusatzleisten als kleinere Leisten neben der Hauptleiste im Blick, z. B. um die Abklingzeiten deiner Schreie zu sehen. Halten oder Drücken der Taste einer Zusatzleiste holt sie nach vorne, und die Hauptleiste nimmt ihren kleinen Platz ein.",
+  "Always show extra bar {} ({})": "Zusatzleiste {} immer anzeigen ({})",
+  "Turn on an extra bar in Bindings > Hotkeys first.": "Schalte zuerst unter Belegung > Tasten eine Zusatzleiste ein.",
+  "Place": "Platz",
+  "Above the main bar": "Über der Hauptleiste",
+  "Below the main bar": "Unter der Hauptleiste"
 }

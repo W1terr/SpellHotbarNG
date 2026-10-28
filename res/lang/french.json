@@ -214,5 +214,12 @@
   "Slot positions": "Position des emplacements",
   "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "Déplace des emplacements un par un hors de leur place dans la barre. L'aperçu marque l'emplacement que tu modifies.",
   "Reset this slot": "Réinitialiser cet emplacement",
-  "Reset all slots": "Réinitialiser tous les emplacements"
+  "Reset all slots": "Réinitialiser tous les emplacements",
+  "Extra bars on screen": "Barres supplémentaires à l'écran",
+  "Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place.": "Garde des barres supplémentaires visibles en plus petit à côté de la barre principale, par ex. pour suivre la recharge de tes cris. Maintenir ou appuyer sur la touche d'une barre supplémentaire la fait passer devant, et la barre principale prend sa petite place.",
+  "Always show extra bar {} ({})": "Toujours afficher la barre supplémentaire {} ({})",
+  "Turn on an extra bar in Bindings > Hotkeys first.": "Active d'abord une barre supplémentaire dans Attributions > Touches.",
+  "Place": "Emplacement",
+  "Above the main bar": "Au-dessus de la barre principale",
+  "Below the main bar": "Sous la barre principale"
 }

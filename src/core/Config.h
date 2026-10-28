@@ -56,6 +56,13 @@ enum class IconStyle : int
 	kInventoryAll     // SkyUI's inventory / magic menu icons for everything
 };
 
+// Where always shown extra bars sit, as smaller bars next to the bar in front
+enum class ExtraBarPlace : int
+{
+	kAbove = 0,
+	kBelow
+};
+
 // How the main bar key opens the main bar
 enum class MainBarKeyMode : int
 {
@@ -89,6 +96,11 @@ struct Settings
 	float      spacing{ 6.0f };
 	// each main bar slot can be moved away from its place in the grid (pixels at 1080p, x / y)
 	std::array<std::array<float, 2>, kMaxSlots> slotOffsets{};
+	// extra bars that stay on screen as smaller bars above / below the main bar; holding / pressing their key brings
+	// them to the front and the main bar takes their small place
+	std::array<bool, kModifierCount> extraBarAlwaysShown{ false, false, false };
+	float                            extraBarScale{ 0.7f };
+	ExtraBarPlace                    extraBarPlace{ ExtraBarPlace::kAbove };
 	Anchor     anchor{ Anchor::kBottom };
 	float      offsetX{ 0.0f };
 	float      offsetY{ -100.0f };

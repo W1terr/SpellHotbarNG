@@ -214,5 +214,12 @@
   "Slot positions": "欄位位置",
   "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "將單一欄位從快捷列中的原位置移開。預覽會標示你正在調整的欄位。",
   "Reset this slot": "重設此欄位",
-  "Reset all slots": "重設所有欄位"
+  "Reset all slots": "重設所有欄位",
+  "Extra bars on screen": "畫面上的額外快捷列",
+  "Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place.": "將額外快捷列以較小的快捷列顯示在主快捷列旁，例如用來查看吶喊的冷卻時間。按住或按下額外快捷列的按鍵會讓它移到前方，主快捷列則換到它的小位置。",
+  "Always show extra bar {} ({})": "總是顯示額外快捷列 {}（{}）",
+  "Turn on an extra bar in Bindings > Hotkeys first.": "請先在 綁定 > 按鍵 中啟用額外快捷列。",
+  "Place": "位置",
+  "Above the main bar": "主快捷列上方",
+  "Below the main bar": "主快捷列下方"
 }

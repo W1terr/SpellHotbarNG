@@ -214,5 +214,12 @@
   "Slot positions": "Posición de las ranuras",
   "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "Mueve ranuras sueltas fuera de su lugar en la barra. La vista previa marca la ranura que estás cambiando.",
   "Reset this slot": "Restablecer esta ranura",
-  "Reset all slots": "Restablecer todas las ranuras"
+  "Reset all slots": "Restablecer todas las ranuras",
+  "Extra bars on screen": "Barras extra en pantalla",
+  "Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place.": "Mantén barras extra a la vista como barras más pequeñas junto a la barra principal, p. ej. para ver la recarga de tus gritos. Mantener o pulsar la tecla de una barra extra la trae al frente y la barra principal ocupa su lugar pequeño.",
+  "Always show extra bar {} ({})": "Mostrar siempre la barra extra {} ({})",
+  "Turn on an extra bar in Bindings > Hotkeys first.": "Activa primero una barra extra en Asignaciones > Teclas.",
+  "Place": "Lugar",
+  "Above the main bar": "Encima de la barra principal",
+  "Below the main bar": "Debajo de la barra principal"
 }

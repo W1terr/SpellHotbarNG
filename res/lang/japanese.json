@@ -214,5 +214,12 @@
   "Slot positions": "スロットの位置",
   "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "スロットを1つずつバーの中の位置から動かします。プレビューでは変更中のスロットが強調されます。",
   "Reset this slot": "このスロットをリセット",
-  "Reset all slots": "すべてのスロットをリセット"
+  "Reset all slots": "すべてのスロットをリセット",
+  "Extra bars on screen": "画面上の追加バー",
+  "Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place.": "追加バーをメインバーの横に小さいバーとして常に表示します（例: シャウトのクールダウンを見るため）。追加バーのキーを押し続ける／押すとそのバーが前に出て、メインバーが小さい位置に移ります。",
+  "Always show extra bar {} ({})": "追加バー {} を常に表示 ({})",
+  "Turn on an extra bar in Bindings > Hotkeys first.": "先に 割り当て > キー設定 で追加バーを有効にしてください。",
+  "Place": "位置",
+  "Above the main bar": "メインバーの上",
+  "Below the main bar": "メインバーの下"
 }

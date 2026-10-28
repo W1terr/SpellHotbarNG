@@ -214,5 +214,12 @@
   "Slot positions": "Положение ячеек",
   "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "Сдвигайте отдельные ячейки с их места на панели. Предпросмотр отмечает ячейку, которую вы меняете.",
   "Reset this slot": "Сбросить эту ячейку",
-  "Reset all slots": "Сбросить все ячейки"
+  "Reset all slots": "Сбросить все ячейки",
+  "Extra bars on screen": "Доп. панели на экране",
+  "Keep extra bars in view as smaller bars next to the main bar, e.g. to watch your shout cooldowns. Holding or pressing an extra bar's key brings it to the front and the main bar takes its small place.": "Держите дополнительные панели на виду как уменьшенные панели рядом с основной, например чтобы видеть перезарядку криков. Удержание или нажатие клавиши дополнительной панели выводит её вперёд, а основная панель занимает её маленькое место.",
+  "Always show extra bar {} ({})": "Всегда показывать доп. панель {} ({})",
+  "Turn on an extra bar in Bindings > Hotkeys first.": "Сначала включите дополнительную панель в разделе Назначения > Клавиши.",
+  "Place": "Место",
+  "Above the main bar": "Над основной панелью",
+  "Below the main bar": "Под основной панелью"
 }

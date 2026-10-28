@@ -404,8 +404,11 @@ namespace UI
 		// in the inventory / magic / favorites menu the bars can have a place of their own (menus cover the usual one)
 		const bool  menuPlace = settings.menuPosition && (ctx->preview ? PreviewMenuPosition() : ctx->bindMenu);
 		const float mainSlide = (1.0f - mainEased) * kSlideDistance * scale;
-		const auto  origin = menuPlace ? Origin(settings.menuAnchor, settings.menuOffsetX, settings.menuOffsetY, { width, height }, screen, scale, 0.0f) :
-		                                 Origin(settings.anchor, settings.offsetX, settings.offsetY, { width, height }, screen, scale, mainSlide);
+		const auto  barOrigin = [&](float a_slide) {
+			return menuPlace ? Origin(settings.menuAnchor, settings.menuOffsetX, settings.menuOffsetY, { width, height }, screen, scale, 0.0f) :
+			                   Origin(settings.anchor, settings.offsetX, settings.offsetY, { width, height }, screen, scale, a_slide);
+		};
+		const auto origin = barOrigin(mainSlide);
 
 		const auto castInfo = Actions::CurrentCast();
 		const auto selection = ctx->bindMenu ? Input::MenuSelection() : nullptr;
@@ -414,21 +417,72 @@ namespace UI
 		const auto readySpell = Bindings::GetForm(Page::kMain, kReadySpellSlot);
 		const auto readyPotion = Bindings::GetForm(Page::kMain, kReadyPotionSlot);
 
-		for (int slot = 0; slot < count && mainAlpha > 0.01f; ++slot) {
-			const auto form = Bindings::GetForm(page, slot);
-			if (!form && !settings.showEmptySlots && !ctx->bindMenu && !ctx->preview) {
-				continue;
+		// one page's slots; only the bar in front (the one the slot keys use) shows key labels
+		const auto drawBar = [&](Page a_page, ImVec2 a_origin, const SlotStyle& a_style, float a_spacing, bool a_front) {
+			const float barSize = a_style.size;
+			const float shrink = barSize / size;  // single slots moved in Bar Layout keep their place on a smaller bar
+			for (int slot = 0; slot < count; ++slot) {
+				const auto form = Bindings::GetForm(a_page, slot);
+				if (!form && !settings.showEmptySlots && !ctx->bindMenu && !ctx->preview) {
+					continue;
+				}
+				const auto&  offset = settings.slotOffsets[slot];
+				const ImVec2 p0{ a_origin.x + (slot % cols) * (barSize + a_spacing) + offset[0] * scale * shrink,
+					a_origin.y + (slot / cols) * (barSize + a_spacing) + offset[1] * scale * shrink };
+				// equipped (spell in hand, current power, worn item) or picked for the Oblivion style cast / potion key
+				const bool marked = form && (Actions::IsEquipped(form) || (oblivion && (form == readySpell || form == readyPotion)));
+				const bool casting = castInfo && castInfo->page == a_page && castInfo->slot == slot;
+				DrawSlot(a_style, p0, form, Bindings::Get(a_page, slot).hand, marked, casting ? &*castInfo : nullptr,
+					a_front && settings.showKeyLabels ? Hotkeys::Label(settings, settings.slotKeys[slot]) : std::string{});
+				if (a_front && ctx->preview && slot == PreviewSlot()) {
+					DrawIcon(a_style.list, a_style.barHighlight, p0, ImVec2{ p0.x + barSize, p0.y + barSize }, Color(255, 210, 100, 1.0f));
+				}
 			}
-			const auto&  offset = settings.slotOffsets[slot];
-			const ImVec2 p0{ origin.x + (slot % cols) * (size + spacing) + offset[0] * scale,
-				origin.y + (slot / cols) * (size + spacing) + offset[1] * scale };
-			// equipped (spell in hand, current power, worn item) or picked for the Oblivion style cast / potion key
-			const bool marked = form && (Actions::IsEquipped(form) || (oblivion && (form == readySpell || form == readyPotion)));
-			const bool casting = castInfo && castInfo->page == page && castInfo->slot == slot;
-			DrawSlot(mainStyle, p0, form, Bindings::Get(page, slot).hand, marked, casting ? &*castInfo : nullptr,
-				settings.showKeyLabels ? Hotkeys::Label(settings, settings.slotKeys[slot]) : std::string{});
-			if (ctx->preview && slot == PreviewSlot()) {
-				DrawIcon(mainStyle.list, mainStyle.barHighlight, p0, ImVec2{ p0.x + size, p0.y + size }, Color(255, 210, 100, 1.0f));
+		};
+		if (mainAlpha > 0.01f) {
+			drawBar(page, origin, mainStyle, spacing, true);
+		}
+
+		// Always shown extra bars: smaller bars stacked above / below the bar in front. Holding / pressing an extra bar's
+		// key brings it to the front and the main bar takes the small place.
+		float stackTop = origin.y;
+		float stackBottom = origin.y + height;
+		const auto alwaysShown = [&](int a_bar) { return settings.modifierEnabled[a_bar] && settings.extraBarAlwaysShown[a_bar]; };
+		if (std::ranges::any_of(std::views::iota(0, kModifierCount), alwaysShown)) {
+			const float smallSize = size * settings.extraBarScale;
+			const float smallSpacing = spacing * settings.extraBarScale;
+			const float smallWidth = cols * smallSize + (cols - 1) * smallSpacing;
+			const float smallHeight = rows * smallSize + (rows - 1) * smallSpacing;
+			const float gap = std::max(spacing, 6.0f * scale) + size * 0.1f;  // the charge bar under a slot fits in between
+			const bool  below = settings.extraBarPlace == ExtraBarPlace::kBelow;
+			const auto  stackOrigin = barOrigin(slide);
+			const float labelSize = std::max(9.0f, smallSize * 0.3f);
+			for (int i = 0; i < kPageCount; ++i) {
+				const auto other = static_cast<Page>(i);
+				const int  bar = i - static_cast<int>(Page::kModifier1);
+				if (other == page || (other != Page::kMain && !alwaysShown(bar))) {
+					continue;
+				}
+				// the main bar keeps hiding where it hides in front (Oblivion style, main bar key)
+				const float barAlpha = other == Page::kMain ? mainAlpha : alpha;
+				if (barAlpha <= 0.01f) {
+					continue;
+				}
+				const ImVec2 o{ stackOrigin.x + (width - smallWidth) * 0.5f, below ? stackBottom + gap : stackTop - gap - smallHeight };
+				if (below) {
+					stackBottom = o.y + smallHeight;
+				} else {
+					stackTop = o.y;
+				}
+				const auto smallStyle = MakeStyle(settings, smallSize, barAlpha);
+				drawBar(other, o, smallStyle, smallSpacing, false);
+				// which bar it is: its key on the left
+				if (settings.showPageName && other != Page::kMain) {
+					const auto label = Hotkeys::Label(settings, settings.modifierKeys[bar]);
+					const auto ts = TextSize(labelSize, label);
+					const ImVec2 at{ std::max(0.0f, o.x - ts.x - smallSpacing - 4.0f), o.y + (smallSize - ts.y) * 0.5f };
+					DrawText(smallStyle.list, labelSize, at, label, colors.text, barAlpha);
+				}
 			}
 		}
 
@@ -470,8 +524,9 @@ namespace UI
 		// above the main bar, or while binding with the main bar hidden (Oblivion style) above the small bar
 		const bool aboveMain = mainAlpha > 0.01f;
 		if (!header.empty() && (aboveMain || (oblivion && ctx->bindMenu))) {
-			const auto  boxOrigin = aboveMain ? origin : readyOrigin;
-			const auto  box = aboveMain ? ImVec2{ width, height } : extent;
+			// above everything stacked over the main bar
+			const auto  boxOrigin = aboveMain ? ImVec2{ origin.x, std::min(origin.y, stackTop) } : readyOrigin;
+			const auto  box = aboveMain ? ImVec2{ width, std::max(origin.y + height, stackBottom) - boxOrigin.y } : extent;
 			const float hs = std::max(12.0f, size * 0.32f);
 			const auto  ts = TextSize(hs, header);
 			float       y = boxOrigin.y - ts.y - spacing - 2.0f;
