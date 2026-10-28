@@ -210,5 +210,9 @@
   "On: when you unfavorite a spell, item, power or shout that's on the bar, it's taken off the bar,\nlike a favorites hotkey in the base game.\nOff: the bar keeps it until you clear the slot yourself.": "開啟：當你把快捷列上的法術、物品、威能或龍吼從最愛中移除時，它也會從快捷列移除，\n與原版遊戲的最愛快捷鍵相同。\n關閉：快捷列會保留它，直到你自己清空該欄位。",
   "Bind in the Favorites menu": "在我的最愛選單中綁定",
   "On: in the Favorites menu, pressing a slot key puts the selected favorite on the bar,\nlike in the Magic and Inventory menus.\nOff: the Favorites menu works like in the base game: number keys set its own hotkeys, and the bar\nisn't shown there. Tip: give the bar other slot keys, or turn off \"Slot keys only use the hotbar\",\nso those hotkeys also work in game.": "開啟：在我的最愛選單中按欄位按鍵，會把選中的最愛放到快捷列上，\n與魔法和物品欄選單相同。\n關閉：我的最愛選單與原版遊戲相同：數字鍵設定它自己的快捷鍵，快捷列\n也不會在那裡顯示。提示：給快捷列其他欄位按鍵，或關閉「欄位按鍵只用於快捷列」，\n讓這些快捷鍵在遊戲中也能使用。",
-  "On: a spell, scroll, power or shout cast right away from the bar can be used during a weapon\nattack (swing, power attack, bash) and takes over from it, like the game's Shout key does,\nso you can cancel attacks with it.\nOff: the bar's magic can't be used while you attack.": "開啟：從快捷列立即施放的法術、卷軸、威能或龍吼在武器攻擊（揮擊、強力攻擊、盾擊）中也能使用，\n並像遊戲的龍吼鍵一樣接替攻擊，\n可用來取消攻擊。\n關閉：攻擊時無法使用快捷列的魔法。"
+  "On: a spell, scroll, power or shout cast right away from the bar can be used during a weapon\nattack (swing, power attack, bash) and takes over from it, like the game's Shout key does,\nso you can cancel attacks with it.\nOff: the bar's magic can't be used while you attack.": "開啟：從快捷列立即施放的法術、卷軸、威能或龍吼在武器攻擊（揮擊、強力攻擊、盾擊）中也能使用，\n並像遊戲的龍吼鍵一樣接替攻擊，\n可用來取消攻擊。\n關閉：攻擊時無法使用快捷列的魔法。",
+  "Slot positions": "欄位位置",
+  "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "將單一欄位從快捷列中的原位置移開。預覽會標示你正在調整的欄位。",
+  "Reset this slot": "重設此欄位",
+  "Reset all slots": "重設所有欄位"
 }

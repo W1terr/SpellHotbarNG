@@ -12,4 +12,7 @@ namespace UI
 	// The settings preview shows the bars where they sit in the inventory / magic menus (the player last edited that
 	// position), not where they sit in game
 	bool PreviewMenuPosition();
+
+	// The main bar slot whose position is being changed in the settings (marked in the preview), -1 for none
+	int PreviewSlot();
 }

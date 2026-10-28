@@ -98,29 +98,60 @@ namespace Util
 		return out;
 	}
 
+	namespace
+	{
+		RE::TESRace* LookupRace(RE::FormID a_localID, std::string_view a_plugin)
+		{
+			const auto dataHandler = RE::TESDataHandler::GetSingleton();
+			return dataHandler ? dataHandler->LookupForm<RE::TESRace>(a_localID, a_plugin) : nullptr;
+		}
+
+		RE::TESRace* PlayerRace()
+		{
+			const auto player = RE::PlayerCharacter::GetSingleton();
+			return player ? player->GetRace() : nullptr;
+		}
+	}
+
 	bool InBeastForm()
 	{
 		// the game's beast form flag: set by the werewolf and vampire lord scripts (and most transformation mods)
 		if (const auto controls = RE::MenuControls::GetSingleton(); controls && controls->InBeastForm()) {
 			return true;
 		}
-		const auto player = RE::PlayerCharacter::GetSingleton();
-		const auto race = player ? player->GetRace() : nullptr;
+		const auto race = PlayerRace();
 		if (!race) {
 			return false;
 		}
 		static RE::TESRace* werewolf = nullptr;
-		static RE::TESRace* vampireLord = nullptr;
 		if (!werewolf) {
 			const auto defaults = RE::BGSDefaultObjectManager::GetSingleton();
 			const auto object = defaults ? defaults->GetObject<RE::TESRace>(RE::DefaultObjectID::kWerewolfRace) : nullptr;
 			werewolf = object ? *object : nullptr;
 		}
-		if (!vampireLord) {
-			const auto dataHandler = RE::TESDataHandler::GetSingleton();
-			vampireLord = dataHandler ? dataHandler->LookupForm<RE::TESRace>(0x00283A, "Dawnguard.esm"sv) : nullptr;  // DLC1VampireBeastRace
+		return race == werewolf || CurrentCastingForm() != CastingForm::kNone;
+	}
+
+	CastingForm CurrentCastingForm()
+	{
+		const auto race = PlayerRace();
+		if (!race) {
+			return CastingForm::kNone;
 		}
-		return race == werewolf || race == vampireLord;
+		static const auto vampireLord = LookupRace(0x00283A, "Dawnguard.esm"sv);  // DLC1VampireBeastRace
+		static const auto lich = LookupRace(0x01772A, "Undeath.esp"sv);           // NecroLichRace
+		if (race == vampireLord) {
+			return CastingForm::kVampireLord;
+		}
+		if (race == lich) {
+			return CastingForm::kLich;
+		}
+		return CastingForm::kNone;
+	}
+
+	bool HotbarOffInBeastForm()
+	{
+		return InBeastForm() && CurrentCastingForm() == CastingForm::kNone;
 	}
 
 	bool OnMount()
@@ -132,6 +163,6 @@ namespace Util
 
 	bool HotbarOff()
 	{
-		return InBeastForm() || OnMount();
+		return HotbarOffInBeastForm() || OnMount();
 	}
 }

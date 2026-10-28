@@ -31,7 +31,7 @@ namespace Replacers
 
 		constexpr std::string_view kOutRoot = "Data/meshes/actors/character/OpenAnimationReplacer/SpellHotbarNG_Replacers"sv;
 		constexpr std::string_view kManifest = "manifest.txt"sv;
-		constexpr int              kGeneratorVersion = 4;  // bump when the output changes (3 had interruptible locomotion)
+		constexpr int              kGeneratorVersion = 5;  // bump when the output changes (3 had interruptible locomotion, 4 named submods by folder priority)
 
 		// above Spell Hotbar NG's own submods (2140000000 + ...), below the animation patches (2141000000 + ...)
 		constexpr int kPriorityBase = 2140100000;
@@ -140,11 +140,13 @@ namespace Replacers
 				kFemale,
 				kInCombat,
 				kSneaking,
-				kWeaponDrawn
+				kWeaponDrawn,
+				kEquippedRight,  // a specific form in the hand (OAR IsEquipped)
+				kEquippedLeft
 			};
 			Kind        kind;
 			bool        negated{ false };
-			std::string plugin;
+			std::string plugin;  // kActorBase, kEquipped*
 			RE::FormID  localID{ 0 };
 			int         value{ 0 };
 			float       chance{ 0.0f };
@@ -328,6 +330,16 @@ namespace Replacers
 				condition.kind = Condition::Kind::kSneaking;
 			} else if (name == "isweapondrawn") {
 				condition.kind = Condition::Kind::kWeaponDrawn;
+			} else if (name == "isequipped") {
+				// "Form": { "pluginName": "Skyrim.esm", "formID": "2DD29" }
+				const auto form = a_condition.value("Form", json::object());
+				const auto id = form.value("formID", ""s);
+				condition.kind = a_condition.value("Left hand", false) ? Condition::Kind::kEquippedLeft : Condition::Kind::kEquippedRight;
+				condition.plugin = form.value("pluginName", ""s);
+				if (condition.plugin.empty() || std::from_chars(id.data(), id.data() + id.size(), condition.localID, 16).ec != std::errc{}) {
+					a_error = "can't read an IsEquipped condition";
+					return std::nullopt;
+				}
 			} else {
 				a_error = std::format("condition \"{}\" isn't supported", a_condition.value("condition", ""));
 				return std::nullopt;
@@ -439,10 +451,15 @@ namespace Replacers
 			CastAnim::Side       side;
 
 			// the casting hand(s) count as holding the hotbar spell, like a vanilla cast; the other hand what it holds
-			int HandType(bool a_left) const
+			RE::TESForm* HandForm(bool a_left) const
 			{
 				const bool casting = side == CastAnim::Side::kBoth || (side == CastAnim::Side::kLeft) == a_left;
-				return EquippedType(casting ? item : player->GetEquippedObject(a_left));
+				return casting ? item : player->GetEquippedObject(a_left);
+			}
+
+			int HandType(bool a_left) const
+			{
+				return EquippedType(HandForm(a_left));
 			}
 		};
 
@@ -486,6 +503,14 @@ namespace Replacers
 				break;
 			case Condition::Kind::kWeaponDrawn:
 				result = a_context.player->AsActorState()->IsWeaponDrawn();
+				break;
+			case Condition::Kind::kEquippedRight:
+			case Condition::Kind::kEquippedLeft:
+				{
+					const auto form = a_context.HandForm(a_condition.kind == Condition::Kind::kEquippedLeft);
+					const auto dataHandler = RE::TESDataHandler::GetSingleton();
+					result = form && dataHandler && form->GetFormID() == dataHandler->LookupFormID(a_condition.localID, a_condition.plugin);
+				}
 				break;
 			}
 			return result != a_condition.negated;
@@ -878,7 +903,7 @@ namespace Replacers
 				const auto  variant = static_cast<int>(i) + 1;
 
 				if (source.role == kLocomotion) {
-					const auto name = std::format("locomotion_{}", folder.priority);
+					const auto name = std::format("locomotion_{}", variant);
 					const json config{
 						{ "name", name },
 						{ "description", std::format("walk / run while casting, from {}", folder.dir.generic_string()) },
@@ -897,13 +922,14 @@ namespace Replacers
 					continue;
 				}
 
-				// the shout clip (charge / release), and in 1st person also the walk / run clips while the shout state runs
+				// the shout clip (charge / release), and in 1st person also the walk / run clips while the shout state runs. Named
+				// after the variant: OAR submods of one mod often share a priority, and every variant needs its own submod.
 				for (const bool move : { false, true }) {
 					if (move ? source.view != 1 : source.role == kReady) {
 						continue;
 					}
 					const auto name = std::format("{}_{}{}{}_{}", row.folder, kRoleNames[source.role], source.view == 1 ? "_1st"sv : ""sv,
-						move ? "_move"sv : ""sv, folder.priority);
+						move ? "_move"sv : ""sv, variant);
 					json config{
 						{ "name", name },
 						{ "description", std::format("{} clip from {}", kRoleNames[source.role], folder.dir.generic_string()) },

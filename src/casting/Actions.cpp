@@ -1,5 +1,6 @@
 #include "casting/Actions.h"
 
+#include "casting/BeastCast.h"
 #include "casting/CastAnim.h"
 #include "casting/PlayerControl.h"
 #include "casting/ShoutCooldowns.h"
@@ -80,19 +81,21 @@ namespace Actions
 		constexpr auto kDrawingOrSheathing = "drawing / sheathing";
 		constexpr auto kAttacking = "attacking";
 
-		// Why magic can't be used right now, nullptr if it can: no magic while jumping / falling, in beast form, riding,
-		// swimming (vanilla can't cast while swimming either), attacking (weapon swings incl. power attacks, bashes,
-		// drawing a bow) or drawing / sheathing (a running cast stops when one of them starts)
+		// Why magic can't be used right now, nullptr if it can: no magic while jumping / falling, in beast form (except
+		// the ones casting with their own hands, BeastCast), riding, swimming (vanilla can't cast while swimming either),
+		// attacking (weapon swings incl. power attacks, bashes, drawing a bow) or drawing / sheathing (a running cast stops
+		// when one of them starts)
 		const char* CastBlocker()
 		{
 			const auto player = Player();
 			if (!player) {
 				return "no player";
 			}
-			if (airTime >= kAirDebounce) {
+			// (a levitating vampire lord or a floating lich may count as in the air; the game decides for them)
+			if (airTime >= kAirDebounce && Util::CurrentCastingForm() == Util::CastingForm::kNone) {
 				return "jumping / falling";
 			}
-			if (Util::InBeastForm()) {
+			if (Util::HotbarOffInBeastForm()) {
 				return "in beast form";
 			}
 			if (Util::OnMount()) {
@@ -635,11 +638,30 @@ namespace Actions
 			case SpellType::kPower:
 			case SpellType::kLesserPower:
 			case SpellType::kVoicePower:
-				VanillaCast::StartShout(a_spell, a_page, a_slot, a_key, a_keyHeld);
+				if (!VanillaCast::StartShout(a_spell, a_page, a_slot, a_key, a_keyHeld)) {
+					LogPress(a_slot, a_spell, "waits for the running shout / power");
+					Queue(a_page, a_slot, a_key, a_keyHeld);
+				}
 				return;
 			case SpellType::kSpell:
 				break;
 			default:
+				return;
+			}
+
+			// vampire lord / lich: the game's own hand casting, with the form's casting animations
+			if (Util::CurrentCastingForm() != Util::CastingForm::kNone) {
+				switch (BeastCast::Start(a_spell, a_binding, a_page, a_slot, a_key, a_keyHeld)) {
+				case BeastCast::StartResult::kBusy:
+					LogPress(a_slot, a_spell, "waits for the running cast");
+					Queue(a_page, a_slot, a_key, a_keyHeld);
+					break;
+				case BeastCast::StartResult::kFailed:
+					FailFeedback();
+					break;
+				default:
+					break;
+				}
 				return;
 			}
 
@@ -682,7 +704,10 @@ namespace Actions
 				FailFeedback();
 				return;
 			}
-			VanillaCast::StartShout(a_shout, a_page, a_slot, a_key, a_keyHeld);
+			if (!VanillaCast::StartShout(a_shout, a_page, a_slot, a_key, a_keyHeld)) {
+				LogPress(a_slot, a_shout, "waits for the running shout / power");
+				Queue(a_page, a_slot, a_key, a_keyHeld);
+			}
 		}
 
 		void UseAlchemy(RE::AlchemyItem* a_item)
@@ -802,6 +827,16 @@ namespace Actions
 		}
 		const auto binding = Bindings::Get(a_page, a_slot);
 
+		// vampire lord / lich: only spells and powers from the bar (a vampire lord can't shout, a lich can)
+		if (const auto castingForm = Util::CurrentCastingForm(); castingForm != Util::CastingForm::kNone) {
+			const bool shout = form->Is(RE::FormType::Shout);
+			if (shout ? castingForm == Util::CastingForm::kVampireLord : !form->Is(RE::FormType::Spell)) {
+				LogPress(a_slot, form, shout ? "a vampire lord can't shout" : "only spells in beast form");
+				FailFeedback();
+				return;
+			}
+		}
+
 		// slot keys in Equip / Oblivion style mode equip or pick magic instead of casting it (the cast key and potion
 		// key of Oblivion style use their pseudo slots normally). A slot can have its own mode for its magic.
 		if (!IsReadySlot(a_slot)) {
@@ -860,6 +895,7 @@ namespace Actions
 	void OnKeyUp(std::uint32_t a_key)
 	{
 		VanillaCast::OnKeyUp(a_key);
+		BeastCast::OnKeyUp(a_key);
 		if (queued && queued->key == a_key) {
 			queued->keyHeld = false;
 		}
@@ -885,6 +921,7 @@ namespace Actions
 		}
 		ShoutCooldowns::Update();  // before VanillaCast presses the Shout button for a just equipped shout
 		VanillaCast::Update(a_delta);
+		BeastCast::Update(a_delta);
 		CastAnim::Update(a_delta);
 		StrangeRunes::Update(a_delta);
 
@@ -985,6 +1022,7 @@ namespace Actions
 	void Reset()
 	{
 		VanillaCast::Reset();
+		BeastCast::Reset();
 		CastAnim::Reset();
 		ShoutCooldowns::Reset();
 		StrangeRunes::Reset();
@@ -1000,6 +1038,9 @@ namespace Actions
 		if (!cast) {
 			if (const auto vanilla = VanillaCast::Current()) {
 				return CastInfo{ vanilla->page, vanilla->slot, vanilla->progress, vanilla->channeling };
+			}
+			if (const auto beast = BeastCast::Current()) {
+				return CastInfo{ beast->page, beast->slot, beast->progress, beast->channeling };
 			}
 			return std::nullopt;
 		}

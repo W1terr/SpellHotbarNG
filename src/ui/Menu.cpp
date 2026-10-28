@@ -225,6 +225,17 @@ namespace UI
 	{
 		bool previewMenuPosition{ false };
 
+		// Slot positions: the slot being changed, marked in the settings preview while its widgets are used
+		int                                   editedSlot{ 0 };
+		std::chrono::steady_clock::time_point editedSlotTime{};
+
+		void PreviewSlotGroup()
+		{
+			if (IsItemHovered() || IsItemActive()) {
+				editedSlotTime = std::chrono::steady_clock::now();
+			}
+		}
+
 		// The widget just drawn belongs to the in-game position (false) or the menu position (true): while the player
 		// points at or drags it, the settings preview shows the bars at that place
 		void PreviewGroup(bool a_menu)
@@ -259,6 +270,11 @@ namespace UI
 		return previewMenuPosition;
 	}
 
+	int PreviewSlot()
+	{
+		return std::chrono::steady_clock::now() - editedSlotTime < 300ms ? editedSlot : -1;
+	}
+
 	void __stdcall RenderBarPage()
 	{
 		std::scoped_lock lock(Config::Lock());
@@ -281,6 +297,30 @@ namespace UI
 			Changed(true);
 		}
 		PreviewGroup(false);
+
+		SeparatorText(T("Slot positions"));
+		TextDisabled("%s", T("Move single slots away from their place in the bar. The preview marks the slot you are changing."));
+		editedSlot = std::clamp(editedSlot, 0, s.slotCount - 1);
+		int slotNumber = editedSlot + 1;
+		if (SliderInt(Id("Slot", "slotOffsetSlot").c_str(), &slotNumber, 1, s.slotCount)) {
+			editedSlot = std::clamp(slotNumber - 1, 0, s.slotCount - 1);
+		}
+		PreviewSlotGroup();
+		auto& slotOffset = s.slotOffsets[editedSlot];
+		Changed(SliderFloat(Id("Offset X", "slotOffsetX").c_str(), &slotOffset[0], -kMaxSlotOffset, kMaxSlotOffset, "%.0f px"));
+		PreviewSlotGroup();
+		Changed(SliderFloat(Id("Offset Y", "slotOffsetY").c_str(), &slotOffset[1], -kMaxSlotOffset, kMaxSlotOffset, "%.0f px"));
+		PreviewSlotGroup();
+		if (Button(Id("Reset this slot", "resetSlotOffset").c_str())) {
+			slotOffset = { 0.0f, 0.0f };
+			Changed(true);
+		}
+		PreviewSlotGroup();
+		SameLine();
+		if (Button(Id("Reset all slots", "resetSlotOffsets").c_str())) {
+			s.slotOffsets.fill({ 0.0f, 0.0f });
+			Changed(true);
+		}
 
 		if (s.keyMode == KeyMode::kOblivion) {
 			SeparatorText(T("Oblivion style bar"));

@@ -396,8 +396,9 @@ namespace Input
 	bool InBindMenu()
 	{
 		const auto ui = RE::UI::GetSingleton();
-		if (!ui || TextEntryActive() || UI::IsBlockingWindowOpen() || Util::InBeastForm()) {
-			return false;  // a vampire lord can open the Magic menu, but the hotbar is off in beast form
+		// beast forms that can't cast from the bar (werewolf) don't bind either; a book read from the inventory covers it
+		if (!ui || TextEntryActive() || UI::IsBlockingWindowOpen() || Util::HotbarOffInBeastForm() || ui->IsMenuOpen(RE::BookMenu::MENU_NAME)) {
+			return false;
 		}
 		// Favorites menu only with "Bind in the Favorites menu": otherwise its number keys set the game's own hotkeys
 		return ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || GridInventory::MenuOpen() ||

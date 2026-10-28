@@ -210,5 +210,9 @@
   "On: when you unfavorite a spell, item, power or shout that's on the bar, it's taken off the bar,\nlike a favorites hotkey in the base game.\nOff: the bar keeps it until you clear the slot yourself.": "オン: バーにある魔法・アイテム・パワー・シャウトをお気に入りから外すと、バーからも外れます\n（基本ゲームのお気に入りホットキーと同じ）。\nオフ: スロットを自分でクリアするまでバーに残ります。",
   "Bind in the Favorites menu": "お気に入りメニューで登録",
   "On: in the Favorites menu, pressing a slot key puts the selected favorite on the bar,\nlike in the Magic and Inventory menus.\nOff: the Favorites menu works like in the base game: number keys set its own hotkeys, and the bar\nisn't shown there. Tip: give the bar other slot keys, or turn off \"Slot keys only use the hotbar\",\nso those hotkeys also work in game.": "オン: お気に入りメニューでスロットキーを押すと、選択中のお気に入りをバーに登録します\n（魔法・所持品メニューと同じ）。\nオフ: お気に入りメニューは基本ゲームと同じく、数字キーで独自のホットキーを設定し、バーは\n表示されません。ヒント: バーに別のスロットキーを割り当てるか、「スロットキーはホットバー専用」をオフにすると、\nそのホットキーがゲーム中でも使えます。",
-  "On: a spell, scroll, power or shout cast right away from the bar can be used during a weapon\nattack (swing, power attack, bash) and takes over from it, like the game's Shout key does,\nso you can cancel attacks with it.\nOff: the bar's magic can't be used while you attack.": "オン: バーからすぐに使う魔法・巻物・パワー・シャウトは武器攻撃中（攻撃、強攻撃、盾打ち）でも使え、\nゲームのシャウトキーと同じように攻撃から切り替わります。\n攻撃のキャンセルに使えます。\nオフ: 攻撃中はバーの魔法を使えません。"
+  "On: a spell, scroll, power or shout cast right away from the bar can be used during a weapon\nattack (swing, power attack, bash) and takes over from it, like the game's Shout key does,\nso you can cancel attacks with it.\nOff: the bar's magic can't be used while you attack.": "オン: バーからすぐに使う魔法・巻物・パワー・シャウトは武器攻撃中（攻撃、強攻撃、盾打ち）でも使え、\nゲームのシャウトキーと同じように攻撃から切り替わります。\n攻撃のキャンセルに使えます。\nオフ: 攻撃中はバーの魔法を使えません。",
+  "Slot positions": "スロットの位置",
+  "Move single slots away from their place in the bar. The preview marks the slot you are changing.": "スロットを1つずつバーの中の位置から動かします。プレビューでは変更中のスロットが強調されます。",
+  "Reset this slot": "このスロットをリセット",
+  "Reset all slots": "すべてのスロットをリセット"
 }

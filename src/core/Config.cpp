@@ -142,6 +142,7 @@ namespace Config
 		j["columns"] = s.columns;
 		j["iconSize"] = s.iconSize;
 		j["spacing"] = s.spacing;
+		j["slotOffsets"] = s.slotOffsets;
 		j["anchor"] = static_cast<int>(s.anchor);
 		j["offsetX"] = s.offsetX;
 		j["offsetY"] = s.offsetY;
@@ -208,6 +209,7 @@ namespace Config
 		Read(j, "columns", s.columns);
 		Read(j, "iconSize", s.iconSize);
 		Read(j, "spacing", s.spacing);
+		ReadArray(j, "slotOffsets", s.slotOffsets);
 		Read(j, "anchor", s.anchor);
 		Read(j, "offsetX", s.offsetX);
 		Read(j, "offsetY", s.offsetY);
@@ -278,6 +280,10 @@ namespace Config
 		s.columns = std::clamp(s.columns, 1, kMaxSlots);
 		s.iconSize = std::clamp(s.iconSize, 16.0f, 200.0f);
 		s.spacing = std::clamp(s.spacing, 0.0f, 100.0f);
+		for (auto& offset : s.slotOffsets) {
+			offset[0] = std::clamp(offset[0], -kMaxSlotOffset, kMaxSlotOffset);
+			offset[1] = std::clamp(offset[1], -kMaxSlotOffset, kMaxSlotOffset);
+		}
 		s.anchor = static_cast<Anchor>(std::clamp(static_cast<int>(s.anchor), 0, 8));
 		s.opacity = std::clamp(s.opacity, 0.05f, 1.0f);
 		s.visibility = static_cast<Visibility>(std::clamp(static_cast<int>(s.visibility), 0, 6));

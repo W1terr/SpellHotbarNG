@@ -54,13 +54,18 @@ namespace Bindings
 			a_intfc->WriteRecordData(readyPotion.form);
 		}
 
-		void ReadReady(SKSE::SerializationInterface* a_intfc)
+		// v2 (a 1.9.5 test build) also had a cast time, which is skipped
+		void ReadReady(SKSE::SerializationInterface* a_intfc, std::uint32_t a_version)
 		{
 			RE::FormID   spell = 0, potion = 0;
 			std::uint8_t hand = 0;
 			a_intfc->ReadRecordData(spell);
 			a_intfc->ReadRecordData(hand);
 			a_intfc->ReadRecordData(potion);
+			if (a_version >= 2) {
+				float castTime = 0.0f;
+				a_intfc->ReadRecordData(castTime);
+			}
 
 			const auto resolve = [&](RE::FormID a_form) -> RE::FormID {
 				RE::FormID resolved = 0;
@@ -115,15 +120,16 @@ namespace Bindings
 
 			std::uint32_t type, version, length;
 			while (a_intfc->GetNextRecordInfo(type, version, length)) {
-				if (type == kRecordReady && version == kRecordVersion) {
-					ReadReady(a_intfc);
+				if (type == kRecordReady && version >= 1 && version <= 2) {
+					ReadReady(a_intfc, version);
 					continue;
 				}
 				if (type == ShoutCooldowns::kRecord) {
 					ShoutCooldowns::Load(a_intfc, version);
 					continue;
 				}
-				if (type != kRecordBindings || version < 1 || version > kBindingsVersion) {
+				// v3 (a 1.9.5 test build) also had a cast time per slot, which is skipped
+				if (type != kRecordBindings || version < 1 || version > 3) {
 					logs::warn("Unknown co-save record {:X} v{}", type, version);
 					continue;
 				}
@@ -139,6 +145,10 @@ namespace Bindings
 					a_intfc->ReadRecordData(hand);
 					if (version >= 2) {
 						a_intfc->ReadRecordData(mode);
+					}
+					if (version >= 3) {
+						float castTime = 0.0f;
+						a_intfc->ReadRecordData(castTime);
 					}
 
 					RE::FormID resolved = 0;

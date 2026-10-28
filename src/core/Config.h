@@ -2,6 +2,7 @@
 
 inline constexpr int kMaxSlots = 20;
 inline constexpr int kModifierCount = 3;
+inline constexpr float kMaxSlotOffset = 1000.0f;  // how far a single slot can be moved (pixels at 1080p)
 
 // Every slot exists once per page. Holding a modifier shows / uses that modifier's page.
 enum class Page : int
@@ -86,6 +87,8 @@ struct Settings
 	int        columns{ 10 };
 	float      iconSize{ 52.0f };  // pixels at 1080p, scaled with the screen height
 	float      spacing{ 6.0f };
+	// each main bar slot can be moved away from its place in the grid (pixels at 1080p, x / y)
+	std::array<std::array<float, 2>, kMaxSlots> slotOffsets{};
 	Anchor     anchor{ Anchor::kBottom };
 	float      offsetX{ 0.0f };
 	float      offsetY{ -100.0f };

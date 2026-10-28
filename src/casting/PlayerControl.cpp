@@ -66,15 +66,12 @@ namespace PlayerControl
 		}
 	}
 
-	void StopSprinting()
+	void PerformAction(RE::DEFAULT_OBJECT a_action)
 	{
 		const auto player = Player();
-		if (!player || !player->AsActorState()->IsSprinting()) {
-			return;
-		}
 		const auto manager = RE::BGSDefaultObjectManager::GetSingleton();
-		const auto action = manager ? manager->GetObject<RE::BGSAction>(RE::DEFAULT_OBJECT::kActionSprintStop) : nullptr;
-		const auto data = action ? RE::TESActionData::Create() : nullptr;
+		const auto action = manager ? manager->GetObject<RE::BGSAction>(a_action) : nullptr;
+		const auto data = player && action ? RE::TESActionData::Create() : nullptr;
 		if (!data) {
 			return;
 		}
@@ -83,6 +80,14 @@ namespace PlayerControl
 		data->Process();
 		data->~TESActionData();  // game heap object: destroy, then free with the game's allocator
 		RE::free(data);
+	}
+
+	void StopSprinting()
+	{
+		const auto player = Player();
+		if (player && player->AsActorState()->IsSprinting()) {
+			PerformAction(RE::DEFAULT_OBJECT::kActionSprintStop);
+		}
 	}
 
 	bool AimsAtCrosshair(const RE::MagicItem* a_item)

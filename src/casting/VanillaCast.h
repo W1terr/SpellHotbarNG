@@ -15,7 +15,7 @@ namespace VanillaCast
 		bool  channeling{ false };
 	};
 
-	// a_form is a TESShout or a power SpellItem. Returns false if another shout is still running.
+	// a_form is a TESShout or a power SpellItem. Returns false if another shout is still running (queue the press).
 	bool StartShout(RE::TESForm* a_form, Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld);
 
 	void OnKeyUp(std::uint32_t a_key);

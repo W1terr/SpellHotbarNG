@@ -22,6 +22,10 @@ namespace VanillaCast
 			Phase         phase{ Phase::kWaitEquip };
 			float         phaseTime{ 0.0f };
 			float         heldTime{ 0.0f };
+			bool          sawShouting{ false };  // the voice caster / shout animation got busy after the release
+			bool          timerJumped{ false };  // the shout recovery timer was set: the shout went off
+			float         lastTimer{ 0.0f };
+			float         idleTime{ 0.0f };      // since the voice went quiet again
 		};
 
 		std::optional<Shout> shout;
@@ -31,7 +35,11 @@ namespace VanillaCast
 
 		constexpr float kEquipDelay = 0.1f;
 		constexpr float kMinHold = 0.1f;
-		constexpr float kFinishTimeout = 3.0f;
+		constexpr float kFinishMin = 0.3f;
+		constexpr float kQuietTime = 0.2f;      // the voice stays quiet this long before the shout counts as over
+		constexpr float kNoShoutTimeout = 1.0f;  // nothing happened after the release: the game refused it (cooldown)
+		constexpr float kTimerWait = 1.0f;      // after a shout, how long to wait for the recovery timer
+		constexpr float kFinishTimeout = 5.0f;
 		constexpr float kRestoreDelay = 0.3f;
 
 		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
@@ -80,6 +88,54 @@ namespace VanillaCast
 			return shouting;
 		}
 
+		// the voice caster still works on the shout / power (charging words, firing)
+		bool VoiceBusy()
+		{
+			const auto player = Player();
+			for (const auto source : { RE::MagicSystem::CastingSource::kOther, RE::MagicSystem::CastingSource::kInstant }) {
+				const auto caster = player->GetMagicCaster(source);
+				if (caster && caster->state.get() != RE::MagicCaster::State::kNone) {
+					return true;
+				}
+			}
+			return IsShouting();
+		}
+
+		// shouts and voice powers start the shout recovery timer when they go off
+		bool UsesShoutTimer(const RE::TESForm* a_form)
+		{
+			const auto spell = a_form->As<RE::SpellItem>();
+			return a_form->Is(RE::FormType::Shout) || (spell && spell->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower);
+		}
+
+		// The shout is over: it went off (with its recovery timer set) and the voice went quiet, or the game never took it.
+		// The previous power must not come back earlier: the timer of a shout still going off would land on it (and with
+		// "Each shout has its own cooldown" be kept as that shout's cooldown).
+		bool Finished(Shout& a_shout, float a_delta)
+		{
+			const float timer = Player()->GetVoiceRecoveryTime();
+			if (timer > a_shout.lastTimer + 0.05f) {
+				a_shout.timerJumped = true;
+			}
+			a_shout.lastTimer = timer;
+			if (VoiceBusy()) {
+				a_shout.sawShouting = true;
+				a_shout.idleTime = 0.0f;
+			} else {
+				a_shout.idleTime += a_delta;
+			}
+			if (a_shout.phaseTime >= kFinishTimeout) {
+				return true;
+			}
+			if (a_shout.phaseTime < kFinishMin || a_shout.idleTime < kQuietTime) {
+				return false;
+			}
+			if (!a_shout.sawShouting && !a_shout.timerJumped) {
+				return a_shout.phaseTime >= kNoShoutTimeout;
+			}
+			return a_shout.timerJumped || !UsesShoutTimer(a_shout.form) || a_shout.idleTime >= kTimerWait;
+		}
+
 		void Equip(RE::TESForm* a_form)
 		{
 			const auto manager = RE::ActorEquipManager::GetSingleton();
@@ -108,7 +164,8 @@ namespace VanillaCast
 			return false;
 		}
 		if (shout) {
-			if (shout->phase != Phase::kWaitFinish && shout->phase != Phase::kRestoreDelay) {
+			// the previous shout must have gone off first, or its cooldown would land on this one
+			if (shout->phase != Phase::kRestoreDelay) {
 				return false;
 			}
 			shout.reset();  // chained: the power from before the first one comes back at the end
@@ -168,12 +225,13 @@ namespace VanillaCast
 				SendShout(0.0f, shout->heldTime);
 				shout->phase = Phase::kWaitFinish;
 				shout->phaseTime = 0.0f;
+				shout->lastTimer = player->GetVoiceRecoveryTime();
 			} else {
 				SendShout(1.0f, shout->heldTime);
 			}
 			break;
 		case Phase::kWaitFinish:
-			if ((shout->phaseTime > 0.3f && !IsShouting()) || shout->phaseTime > kFinishTimeout) {
+			if (Finished(*shout, a_delta)) {
 				shout->phase = Phase::kRestoreDelay;
 				shout->phaseTime = 0.0f;
 			}

@@ -89,7 +89,25 @@ SIGMA_MAGIC_ANIMATIONS = {
                     for part in ("R", "L", "B", "RCast", "LCast")],
 }
 
-PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING, SIGMA_MAGIC_ANIMATIONS]
+# Comprehensive First Person Animation Overhaul - CFPAO (Nexus 87169, version 1.5.1), an OAR mod, first person only.
+# Like SIGMA: submods per school (Alt / Con / Des / Ill / Res; IsEquippedType 12-16) for the right hand, left hand and
+# both hands (B), plus priority 2 Destruction submods for Lightning Bolt (LL / LR, release only) and Sparks (SL / SR)
+# that add an IsEquipped condition for that spell. Some clips are OAR _variants_. m?h_precharge is a short lead-in and
+# m?h_chargeloop the wind-up loop, like vanilla, so no clip substitutes. The other submods are weapons and movement.
+CFPAO_ROOT = "meshes/actors/character/_1stperson/animations/OpenAnimationReplacer/CFPAO"
+CFPAO = {
+    "name": "Comprehensive First Person Animation Overhaul - CFPAO",
+    "folder": "Comprehensive First Person Animation Overhaul - CFPAO",
+    "description": "Use the magic animations of \"Comprehensive First Person Animation Overhaul - CFPAO\" for Spell Hotbar NG "
+                   "casts in first person. Needs that mod installed; contains no animations itself. At game start Spell "
+                   "Hotbar NG copies its animations for the hotbar (in MO2 they end up in the overwrite folder).",
+    "oar_folders": [f"{CFPAO_ROOT}/Mag{school}{part}"
+                    for school in ("Alt", "Con", "Des", "Ill", "Res")
+                    for part in ("R", "L", "B")]
+                   + [f"{CFPAO_ROOT}/MagDes{part}" for part in ("LL", "LR", "SL", "SR")],
+}
+
+PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING, SIGMA_MAGIC_ANIMATIONS, CFPAO]
 
 # Compatibility patches: a file in Data\SKSE\Plugins\SpellHotbarNG\compat read by the DLL (src/casting/SpellCharges.h).
 # Ordinator - Perks of Skyrim (Nexus 1137), Alteration perk "Vancian Magic": ORD_NewVancianMagicCast_Script (on effect

@@ -4,6 +4,9 @@
 // (third person: the character turns to the camera; at the cast the aim points from the hand to the crosshair).
 namespace PlayerControl
 {
+	// The player performs one of the game's actions (the idle animation the behavior picks for it plays)
+	void PerformAction(RE::DEFAULT_OBJECT a_action);
+
 	// Ends a sprint like vanilla casting does (the game's own "sprint stop" action)
 	void StopSprinting();
 

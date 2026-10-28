@@ -114,8 +114,9 @@ namespace UI
 			if (!ui || !player || !player->Is3DLoaded() || Icons::AtlasCount() == 0) {
 				return std::nullopt;
 			}
+			// (a book read from the inventory opens over the Inventory menu, which would show the bar for binding)
 			if (MenuOpen(RE::MainMenu::MENU_NAME) || MenuOpen(RE::LoadingMenu::MENU_NAME) || MenuOpen(RE::FaderMenu::MENU_NAME) ||
-				MenuOpen(RE::RaceSexMenu::MENU_NAME)) {
+				MenuOpen(RE::RaceSexMenu::MENU_NAME) || MenuOpen(RE::BookMenu::MENU_NAME)) {
 				return std::nullopt;
 			}
 
@@ -127,9 +128,8 @@ namespace UI
 				if (!ui->IsShowingMenus() || ui->GameIsPaused()) {
 					return std::nullopt;
 				}
-				if (MenuOpen(RE::DialogueMenu::MENU_NAME) || MenuOpen(RE::MapMenu::MENU_NAME) || MenuOpen(RE::BookMenu::MENU_NAME) ||
-					MenuOpen(RE::LockpickingMenu::MENU_NAME) || MenuOpen(RE::Console::MENU_NAME) || MenuOpen(RE::FavoritesMenu::MENU_NAME) ||
-					MenuOpen(RE::CraftingMenu::MENU_NAME)) {
+				if (MenuOpen(RE::DialogueMenu::MENU_NAME) || MenuOpen(RE::MapMenu::MENU_NAME) || MenuOpen(RE::LockpickingMenu::MENU_NAME) ||
+					MenuOpen(RE::Console::MENU_NAME) || MenuOpen(RE::FavoritesMenu::MENU_NAME) || MenuOpen(RE::CraftingMenu::MENU_NAME)) {
 					return std::nullopt;
 				}
 
@@ -419,12 +419,17 @@ namespace UI
 			if (!form && !settings.showEmptySlots && !ctx->bindMenu && !ctx->preview) {
 				continue;
 			}
-			const ImVec2 p0{ origin.x + (slot % cols) * (size + spacing), origin.y + (slot / cols) * (size + spacing) };
+			const auto&  offset = settings.slotOffsets[slot];
+			const ImVec2 p0{ origin.x + (slot % cols) * (size + spacing) + offset[0] * scale,
+				origin.y + (slot / cols) * (size + spacing) + offset[1] * scale };
 			// equipped (spell in hand, current power, worn item) or picked for the Oblivion style cast / potion key
 			const bool marked = form && (Actions::IsEquipped(form) || (oblivion && (form == readySpell || form == readyPotion)));
 			const bool casting = castInfo && castInfo->page == page && castInfo->slot == slot;
 			DrawSlot(mainStyle, p0, form, Bindings::Get(page, slot).hand, marked, casting ? &*castInfo : nullptr,
 				settings.showKeyLabels ? Hotkeys::Label(settings, settings.slotKeys[slot]) : std::string{});
+			if (ctx->preview && slot == PreviewSlot()) {
+				DrawIcon(mainStyle.list, mainStyle.barHighlight, p0, ImVec2{ p0.x + size, p0.y + size }, Color(255, 210, 100, 1.0f));
+			}
 		}
 
 		// Oblivion style ready slots: the picked spell, the picked potion and the current power, labelled with the
