@@ -56,6 +56,23 @@ enum class IconStyle : int
 	kInventoryAll     // SkyUI's inventory / magic menu icons for everything
 };
 
+// Outline of a slot: the Nordic UI frame textures, or a drawn shape the icon is cut to
+enum class SlotShape : int
+{
+	kSquare = 0,  // Nordic UI frame
+	kRoundedSquare,
+	kCircle,
+	kHexagon,
+	kDiamond
+};
+
+// How a slot shows its remaining cooldown
+enum class CooldownStyle : int
+{
+	kRising = 0,  // a dark part that shrinks towards the bottom
+	kClock        // a dark part that sweeps around like a clock hand
+};
+
 // Where always shown extra bars sit, as smaller bars next to the bar in front or at a place of their own
 enum class ExtraBarPlace : int
 {
@@ -95,6 +112,8 @@ struct Settings
 	int        columns{ 10 };
 	float      iconSize{ 52.0f };  // pixels at 1080p, scaled with the screen height
 	float      spacing{ 6.0f };
+	SlotShape     slotShape{ SlotShape::kSquare };
+	CooldownStyle cooldownStyle{ CooldownStyle::kRising };
 	// each main bar slot can be moved away from its place in the grid (pixels at 1080p, x / y)
 	std::array<std::array<float, 2>, kMaxSlots> slotOffsets{};
 	// extra bars that stay on screen as smaller bars above / below the main bar; holding / pressing their key brings

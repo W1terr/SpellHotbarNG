@@ -21,6 +21,8 @@ namespace UI
 			"After pressing a hotbar key" };
 		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
 		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
+		constexpr const char* kSlotShapeNames[] = { "Square (Nordic)", "Rounded square", "Circle", "Hexagon", "Diamond" };  // order of SlotShape
+		constexpr const char* kCooldownStyleNames[] = { "Shrinks downwards", "Clock sweep" };  // order of CooldownStyle
 		constexpr const char* kExtraBarPlaceNames[] = { "Above the main bar", "Below the main bar", "Own position" };  // order of ExtraBarPlace
 		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };  // order of Hand
 		constexpr const char* kKeyModeNames[] = { "Cast right away", "Equip", "Oblivion style" };       // order of KeyMode
@@ -425,6 +427,22 @@ namespace UI
 		}
 
 		SeparatorText(T("Look"));
+		const auto shapeNames = Translated(kSlotShapeNames);
+		int        shape = static_cast<int>(s.slotShape);
+		if (Combo(Id("Slot shape", "slotShape").c_str(), &shape, shapeNames.data(), static_cast<int>(shapeNames.size()))) {
+			s.slotShape = static_cast<SlotShape>(shape);
+			Changed(true);
+		}
+		Help("Square uses the Nordic UI frame. The other shapes cut the pictures to their outline;\n"
+			 "Frame and Slot background in Colors color them.");
+		const auto cooldownNames = Translated(kCooldownStyleNames);
+		int        cooldown = static_cast<int>(s.cooldownStyle);
+		if (Combo(Id("Cooldown", "cooldownStyle").c_str(), &cooldown, cooldownNames.data(), static_cast<int>(cooldownNames.size()))) {
+			s.cooldownStyle = static_cast<CooldownStyle>(cooldown);
+			Changed(true);
+		}
+		Help("How a slot shows the time until it can be used again: a dark part that shrinks\n"
+			 "towards the bottom, or one that sweeps around like a clock.");
 		Changed(Checkbox(Id("Show empty slots", "showEmptySlots").c_str(), &s.showEmptySlots));
 		Changed(Checkbox(Id("Show key labels", "showKeyLabels").c_str(), &s.showKeyLabels));
 		Changed(Checkbox(Id("Show which extra bar is active", "showPageName").c_str(), &s.showPageName));

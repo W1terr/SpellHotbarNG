@@ -28,20 +28,184 @@ namespace UI
 			return IM_COL32(channel(a_color[0]), channel(a_color[1]), channel(a_color[2]), channel(a_color[3] * a_alpha));
 		}
 
+		ImTextureID TextureOf(const Icons::Icon& a_icon)
+		{
+			return !a_icon.Valid() ? nullptr : a_icon.texture ? a_icon.texture : AtlasTexture(a_icon.atlas);
+		}
+
+		// the tint times the picture's own color (SkyUI icons are white pictures with a color)
+		ImU32 IconTint(const Icons::Icon& a_icon, ImU32 a_tint)
+		{
+			if (a_icon.rgb == 0xFFFFFF) {
+				return a_tint;
+			}
+			const auto channel = [&](int a_shift) { return ((a_tint >> a_shift) & 0xFF) * ((a_icon.rgb >> (16 - a_shift)) & 0xFF) / 255; };
+			return IM_COL32(channel(IM_COL32_R_SHIFT), channel(IM_COL32_G_SHIFT), channel(IM_COL32_B_SHIFT), (a_tint >> IM_COL32_A_SHIFT) & 0xFF);
+		}
+
 		void DrawIcon(ImDrawList* a_list, const Icons::Icon& a_icon, ImVec2 a_min, ImVec2 a_max, ImU32 a_tint)
 		{
-			if (!a_icon.Valid()) {
+			if (const auto texture = TextureOf(a_icon)) {
+				ImDrawListManager::AddImage(a_list, texture, a_min, a_max, ImVec2{ a_icon.u0, a_icon.v0 }, ImVec2{ a_icon.u1, a_icon.v1 }, IconTint(a_icon, a_tint));
+			}
+		}
+
+		// ---- slot shapes ---------------------------------------------------------------------------------------------
+
+		using Poly = std::vector<ImVec2>;
+
+		constexpr float kPi = 3.14159265f;
+
+		// Outline of a shape around (0, 0) that fills the square -1..1, clockwise on screen (y points down)
+		const Poly& UnitShape(SlotShape a_shape)
+		{
+			static const auto shapes = [] {
+				std::array<Poly, 5> out;
+				const auto arc = [](Poly& a_poly, ImVec2 a_center, float a_radius, float a_from, float a_to, int a_steps) {
+					for (int i = 0; i <= a_steps; ++i) {
+						const float angle = a_from + (a_to - a_from) * static_cast<float>(i) / static_cast<float>(a_steps);
+						a_poly.push_back({ a_center.x + a_radius * std::cos(angle), a_center.y + a_radius * std::sin(angle) });
+					}
+				};
+				out[static_cast<int>(SlotShape::kSquare)] = { { -1.0f, -1.0f }, { 1.0f, -1.0f }, { 1.0f, 1.0f }, { -1.0f, 1.0f } };
+				constexpr float r = 0.35f;  // rounded square corners
+				auto&           rounded = out[static_cast<int>(SlotShape::kRoundedSquare)];
+				arc(rounded, { -1.0f + r, -1.0f + r }, r, kPi, kPi * 1.5f, 6);
+				arc(rounded, { 1.0f - r, -1.0f + r }, r, kPi * 1.5f, kPi * 2.0f, 6);
+				arc(rounded, { 1.0f - r, 1.0f - r }, r, 0.0f, kPi * 0.5f, 6);
+				arc(rounded, { -1.0f + r, 1.0f - r }, r, kPi * 0.5f, kPi, 6);
+				arc(out[static_cast<int>(SlotShape::kCircle)], { 0.0f, 0.0f }, 1.0f, 0.0f, kPi * 2.0f * 31.0f / 32.0f, 31);
+				auto& hexagon = out[static_cast<int>(SlotShape::kHexagon)];  // a point at the top
+				for (int i = 0; i < 6; ++i) {
+					const float angle = -kPi * 0.5f + static_cast<float>(i) * kPi / 3.0f;
+					hexagon.push_back({ std::cos(angle), std::sin(angle) });
+				}
+				out[static_cast<int>(SlotShape::kDiamond)] = { { 0.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, 1.0f }, { -1.0f, 0.0f } };
+				return out;
+			}();
+			return shapes[static_cast<int>(a_shape)];
+		}
+
+		Poly ShapeAt(SlotShape a_shape, ImVec2 a_center, float a_radius)
+		{
+			const auto& unit = UnitShape(a_shape);
+			Poly        out;
+			out.reserve(unit.size());
+			for (const auto& point : unit) {
+				out.push_back({ a_center.x + point.x * a_radius, a_center.y + point.y * a_radius });
+			}
+			return out;
+		}
+
+		// The picture cut to a convex outline: a fan of triangles from the center, the picture spread over a_min..a_max
+		void DrawIconPoly(ImDrawList* a_list, const Icons::Icon& a_icon, const Poly& a_poly, ImVec2 a_min, ImVec2 a_max, ImU32 a_tint)
+		{
+			const auto texture = TextureOf(a_icon);
+			if (!texture || a_poly.size() < 3) {
 				return;
 			}
-			const auto texture = a_icon.texture ? a_icon.texture : AtlasTexture(a_icon.atlas);
-			if (!texture) {
+			// one lookup instead of one per triangle (the framework's wrappers look the function up on every call)
+			using quad_t = void (*)(ImDrawList*, const ImVec2, const ImVec2, const ImVec2, const ImVec2, const ImVec2, const ImVec2, const ImVec2,
+				const ImVec2, ImU32);
+			static const auto primQuadUV = GetMenuFrameworkFunction<quad_t>("ImDrawList_PrimQuadUV");
+			if (!primQuadUV) {
 				return;
 			}
-			if (a_icon.rgb != 0xFFFFFF) {
-				const auto channel = [&](int a_shift) { return ((a_tint >> a_shift) & 0xFF) * ((a_icon.rgb >> (16 - a_shift)) & 0xFF) / 255; };
-				a_tint = IM_COL32(channel(IM_COL32_R_SHIFT), channel(IM_COL32_G_SHIFT), channel(IM_COL32_B_SHIFT), (a_tint >> IM_COL32_A_SHIFT) & 0xFF);
+			const auto uv = [&](ImVec2 a_point) {
+				return ImVec2{ a_icon.u0 + (a_icon.u1 - a_icon.u0) * (a_point.x - a_min.x) / (a_max.x - a_min.x),
+					a_icon.v0 + (a_icon.v1 - a_icon.v0) * (a_point.y - a_min.y) / (a_max.y - a_min.y) };
+			};
+			const ImVec2 center{ (a_min.x + a_max.x) * 0.5f, (a_min.y + a_max.y) * 0.5f };
+			const auto   tint = IconTint(a_icon, a_tint);
+			const auto   count = static_cast<int>(a_poly.size());
+			ImDrawListManager::PushTextureID(a_list, texture);
+			ImDrawListManager::PrimReserve(a_list, count * 6, count * 4);
+			for (int i = 0; i < count; ++i) {
+				const auto& a = a_poly[i];
+				const auto& b = a_poly[(i + 1) % count];
+				primQuadUV(a_list, center, center, a, b, uv(center), uv(center), uv(a), uv(b), tint);
 			}
-			ImDrawListManager::AddImage(a_list, texture, a_min, a_max, ImVec2{ a_icon.u0, a_icon.v0 }, ImVec2{ a_icon.u1, a_icon.v1 }, a_tint);
+			ImDrawListManager::PopTextureID(a_list);
+		}
+
+		void Outline(ImDrawList* a_list, const Poly& a_poly, ImU32 a_color, float a_thickness)
+		{
+			ImDrawListManager::AddPolyline(a_list, a_poly.data(), static_cast<int>(a_poly.size()), a_color, ImDrawFlags_Closed, a_thickness);
+		}
+
+		float Cross(ImVec2 a_a, ImVec2 a_b)
+		{
+			return a_a.x * a_b.y - a_a.y * a_b.x;
+		}
+
+		// The part of a convex outline below a_y
+		Poly ClipBelow(const Poly& a_poly, float a_y)
+		{
+			Poly out;
+			for (std::size_t i = 0; i < a_poly.size(); ++i) {
+				const auto& a = a_poly[i];
+				const auto& b = a_poly[(i + 1) % a_poly.size()];
+				if (a.y >= a_y) {
+					out.push_back(a);
+				}
+				if ((a.y >= a_y) != (b.y >= a_y)) {
+					const float t = (a_y - a.y) / (b.y - a.y);
+					out.push_back({ a.x + (b.x - a.x) * t, a_y });
+				}
+			}
+			return out;
+		}
+
+		// Where a ray from a_center (inside the outline) at a_angle leaves the outline
+		ImVec2 Boundary(const Poly& a_poly, ImVec2 a_center, float a_angle)
+		{
+			const ImVec2 dir{ std::cos(a_angle), std::sin(a_angle) };
+			float        best = 0.0f;
+			for (std::size_t i = 0; i < a_poly.size(); ++i) {
+				const auto&  a = a_poly[i];
+				const auto&  b = a_poly[(i + 1) % a_poly.size()];
+				const ImVec2 edge{ b.x - a.x, b.y - a.y };
+				const float  denom = Cross(dir, edge);
+				if (std::abs(denom) < 1e-6f) {
+					continue;
+				}
+				const ImVec2 w{ a.x - a_center.x, a.y - a_center.y };
+				const float  t = Cross(w, edge) / denom;
+				const float  along = Cross(w, dir) / denom;
+				if (t >= 0.0f && along >= -1e-4f && along <= 1.0f + 1e-4f) {
+					best = std::max(best, t);
+				}
+			}
+			return { a_center.x + dir.x * best, a_center.y + dir.y * best };
+		}
+
+		// Cooldown like a clock: the part still to wait, a_fraction of a full turn ending at 12 o'clock
+		void FillSweep(ImDrawList* a_list, const Poly& a_poly, ImVec2 a_center, float a_fraction, ImU32 a_color)
+		{
+			constexpr float kTop = -kPi * 0.5f;
+			const float     from = kTop + (1.0f - a_fraction) * 2.0f * kPi;
+			const float     to = kTop + 2.0f * kPi;
+			// evenly spread angles plus the outline's corners in between, so straight edges keep their corners
+			std::vector<float> angles;
+			const int          steps = std::max(2, static_cast<int>(48.0f * a_fraction));
+			for (int i = 0; i <= steps; ++i) {
+				angles.push_back(from + (to - from) * static_cast<float>(i) / static_cast<float>(steps));
+			}
+			for (const auto& point : a_poly) {
+				float angle = std::atan2(point.y - a_center.y, point.x - a_center.x);
+				while (angle < from) {
+					angle += 2.0f * kPi;
+				}
+				if (angle < to) {
+					angles.push_back(angle);
+				}
+			}
+			std::ranges::sort(angles);
+			Poly fan{ a_center };
+			for (const float angle : angles) {
+				fan.push_back(Boundary(a_poly, a_center, angle));
+			}
+			ImDrawListManager::AddConcavePolyFilled(a_list, fan.data(), static_cast<int>(fan.size()), a_color);
 		}
 
 		// text with a dark outline, a_alpha fades the outline along with the text
@@ -216,6 +380,8 @@ namespace UI
 			float       labelSize{ 0.0f };
 			float       smallSize{ 0.0f };
 			float       inset{ 0.0f };
+			SlotShape     shape{ SlotShape::kSquare };
+			CooldownStyle cooldownStyle{ CooldownStyle::kRising };
 			Icons::Icon barEmpty;
 			Icons::Icon barOverlay;
 			Icons::Icon barHighlight;
@@ -243,7 +409,10 @@ namespace UI
 			st.alpha = a_alpha;
 			st.labelSize = std::max(10.0f, a_size * 0.30f);
 			st.smallSize = std::max(9.0f, a_size * 0.26f);
-			st.inset = a_size * 0.06f;
+			st.shape = a_settings.slotShape;
+			st.cooldownStyle = a_settings.cooldownStyle;
+			// drawn shapes: the picture stays clear of the frame line
+			st.inset = a_size * (st.shape == SlotShape::kSquare ? 0.06f : 0.08f);
 			// slot frame: the Nordic UI style
 			st.barEmpty = Icons::Named("BAR_EMPTY", true);
 			st.barOverlay = Icons::Named("BAR_OVERLAY", true);
@@ -261,6 +430,47 @@ namespace UI
 			return st;
 		}
 
+		// frame line of the drawn shapes
+		float BorderWidth(const SlotStyle& st)
+		{
+			return std::max(1.5f, st.size * 0.05f);
+		}
+
+		// The square of a slot's picture, and the outline the picture is cut to (Nordic frame: the square itself)
+		struct SlotGeometry
+		{
+			ImVec2 center;
+			ImVec2 iconMin;
+			ImVec2 iconMax;
+			Poly   icon;     // picture area
+			Poly   outline;  // drawn shapes: frame line and background, empty for the Nordic frame
+		};
+
+		SlotGeometry Geometry(const SlotStyle& st, ImVec2 p0)
+		{
+			SlotGeometry g;
+			const float  half = st.size * 0.5f;
+			const float  iconHalf = half - st.inset;
+			g.center = { p0.x + half, p0.y + half };
+			g.iconMin = { g.center.x - iconHalf, g.center.y - iconHalf };
+			g.iconMax = { g.center.x + iconHalf, g.center.y + iconHalf };
+			g.icon = ShapeAt(st.shape, g.center, iconHalf);
+			if (st.shape != SlotShape::kSquare) {
+				g.outline = ShapeAt(st.shape, g.center, half - BorderWidth(st) * 0.5f);
+			}
+			return g;
+		}
+
+		// A highlight around the slot: the Nordic highlight texture, or a line along the shape (a_width: part of the size)
+		void DrawHighlight(const SlotStyle& st, ImVec2 p0, const SlotGeometry& g, ImU32 a_color, float a_width)
+		{
+			if (st.shape == SlotShape::kSquare) {
+				DrawIcon(st.list, st.barHighlight, p0, ImVec2{ p0.x + st.size, p0.y + st.size }, a_color);
+			} else {
+				Outline(st.list, ShapeAt(st.shape, g.center, st.size * 0.5f - st.inset * 0.5f), a_color, st.size * a_width);
+			}
+		}
+
 		// One slot at a_p0. a_marked = equipped highlight, a_cast = this slot's spell is charging / channeling.
 		void DrawSlot(const SlotStyle& st, ImVec2 p0, RE::TESForm* a_form, Hand a_hand, bool a_marked, const Actions::CastInfo* a_cast, const std::string& a_key)
 		{
@@ -268,27 +478,40 @@ namespace UI
 			const auto&  colors = *st.colors;
 			const float  size = st.size;
 			const float  alpha = st.alpha;
-			const float  inset = st.inset;
 			const ImVec2 p1{ p0.x + size, p0.y + size };
+			const bool   nordic = st.shape == SlotShape::kSquare;
+			const auto   g = Geometry(st, p0);
 
-			DrawIcon(list, st.barEmpty, p0, p1, st.background);
+			if (nordic) {
+				DrawIcon(list, st.barEmpty, p0, p1, st.background);
+			} else {
+				ImDrawListManager::AddConvexPolyFilled(list, g.outline.data(), static_cast<int>(g.outline.size()), st.background);
+			}
 
 			if (a_form) {
 				const bool available = Actions::IsAvailable(a_form);
 				const bool affordable = Actions::CanAfford(a_form, a_hand);
 				const auto tint = !available ? st.unavailable : !affordable ? st.noMagicka : st.white;
-				DrawIcon(list, Icons::ForForm(a_form), ImVec2{ p0.x + inset, p0.y + inset }, ImVec2{ p1.x - inset, p1.y - inset }, tint);
-
-				if (a_marked) {
-					DrawIcon(list, st.barHighlight, p0, p1, st.equipped);
+				const auto icon = Icons::ForForm(a_form);
+				if (nordic) {
+					DrawIcon(list, icon, g.iconMin, g.iconMax, tint);
+				} else {
+					DrawIconPoly(list, icon, g.icon, g.iconMin, g.iconMax, tint);
 				}
 
-				// cooldown
+				if (a_marked) {
+					DrawHighlight(st, p0, g, st.equipped, 0.06f);
+				}
+
+				// cooldown: shrinking towards the bottom, or sweeping around like a clock
 				const auto [remaining, total] = Actions::Cooldown(a_form);
 				if (remaining > 0.0f && total > 0.0f) {
 					const float frac = std::clamp(remaining / total, 0.0f, 1.0f);
-					ImDrawListManager::AddRectFilled(list, ImVec2{ p0.x + inset, p1.y - inset - (size - 2 * inset) * frac }, ImVec2{ p1.x - inset, p1.y - inset },
-						st.cooldown, 0.0f, 0);
+					if (st.cooldownStyle == CooldownStyle::kClock) {
+						FillSweep(list, g.icon, g.center, frac, st.cooldown);
+					} else if (const auto part = ClipBelow(g.icon, g.iconMax.y - (g.iconMax.y - g.iconMin.y) * frac); part.size() >= 3) {
+						ImDrawListManager::AddConvexPolyFilled(list, part.data(), static_cast<int>(part.size()), st.cooldown);
+					}
 					if (st.showCooldownText && remaining >= 0.95f) {
 						const auto text = remaining < 10.0f ? std::format("{:.1f}", remaining) : std::format("{:.0f}", remaining);
 						const auto ts = TextSize(st.labelSize, text);
@@ -299,7 +522,7 @@ namespace UI
 				// charge / channel progress
 				if (a_cast) {
 					if (a_cast->channeling) {
-						DrawIcon(list, st.barHighlight, p0, p1, st.channel);
+						DrawHighlight(st, p0, g, st.channel, 0.09f);
 					} else {
 						const float barH = std::max(3.0f, size * 0.08f);
 						ImDrawListManager::AddRectFilled(list, ImVec2{ p0.x, p1.y + 2 }, ImVec2{ p1.x, p1.y + 2 + barH }, st.chargeBack, 0.0f, 0);
@@ -322,7 +545,14 @@ namespace UI
 				}
 			}
 
-			DrawIcon(list, st.barOverlay, p0, p1, st.frame);
+			if (nordic) {
+				DrawIcon(list, st.barOverlay, p0, p1, st.frame);
+			} else {
+				// a dark rim under the frame line keeps it readable on bright scenery
+				const float width = BorderWidth(st);
+				Outline(list, g.outline, Color(0, 0, 0, alpha * 0.6f), width + 2.0f);
+				Outline(list, g.outline, st.frame, width);
+			}
 
 			if (!a_key.empty()) {
 				const auto ts = TextSize(st.labelSize, a_key);
@@ -435,7 +665,7 @@ namespace UI
 				DrawSlot(a_style, p0, form, Bindings::Get(a_page, slot).hand, marked, casting ? &*castInfo : nullptr,
 					a_front && settings.showKeyLabels ? Hotkeys::Label(settings, settings.slotKeys[slot]) : std::string{});
 				if (a_front && ctx->preview && slot == PreviewSlot()) {
-					DrawIcon(a_style.list, a_style.barHighlight, p0, ImVec2{ p0.x + barSize, p0.y + barSize }, Color(255, 210, 100, 1.0f));
+					DrawHighlight(a_style, p0, Geometry(a_style, p0), Color(255, 210, 100, 1.0f), 0.08f);
 				}
 			}
 		};

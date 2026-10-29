@@ -222,5 +222,16 @@
   "Place": "Место",
   "Above the main bar": "Над основной панелью",
   "Below the main bar": "Под основной панелью",
-  "Own position": "Своё положение"
+  "Own position": "Своё положение",
+  "Slot shape": "Форма ячеек",
+  "Square uses the Nordic UI frame. The other shapes cut the pictures to their outline;\nFrame and Slot background in Colors color them.": "Квадрат использует рамку Nordic UI. Остальные формы обрезают картинки по своему контуру;\nРамка и Фон ячейки в разделе Цвета задают их цвет.",
+  "Cooldown": "Перезарядка",
+  "How a slot shows the time until it can be used again: a dark part that shrinks\ntowards the bottom, or one that sweeps around like a clock.": "Как ячейка показывает время до следующего использования: тёмная часть, которая уменьшается\nвниз, или которая проходит по кругу, как стрелка часов.",
+  "Square (Nordic)": "Квадрат (Nordic)",
+  "Rounded square": "Скруглённый квадрат",
+  "Circle": "Круг",
+  "Hexagon": "Шестиугольник",
+  "Diamond": "Ромб",
+  "Shrinks downwards": "Уменьшается вниз",
+  "Clock sweep": "Стрелка часов"
 }

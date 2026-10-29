@@ -222,5 +222,16 @@
   "Place": "Lugar",
   "Above the main bar": "Encima de la barra principal",
   "Below the main bar": "Debajo de la barra principal",
-  "Own position": "Posición propia"
+  "Own position": "Posición propia",
+  "Slot shape": "Forma de las ranuras",
+  "Square uses the Nordic UI frame. The other shapes cut the pictures to their outline;\nFrame and Slot background in Colors color them.": "Cuadrado usa el marco de Nordic UI. Las demás formas recortan las imágenes a su contorno;\nMarco y Fondo de ranura en Colores las colorean.",
+  "Cooldown": "Recarga",
+  "How a slot shows the time until it can be used again: a dark part that shrinks\ntowards the bottom, or one that sweeps around like a clock.": "Cómo muestra una ranura el tiempo hasta poder usarla de nuevo: una parte oscura que se encoge\nhacia abajo, o que gira como la aguja de un reloj.",
+  "Square (Nordic)": "Cuadrado (Nordic)",
+  "Rounded square": "Cuadrado redondeado",
+  "Circle": "Círculo",
+  "Hexagon": "Hexágono",
+  "Diamond": "Rombo",
+  "Shrinks downwards": "Se encoge hacia abajo",
+  "Clock sweep": "Aguja de reloj"
 }

@@ -222,5 +222,16 @@
   "Place": "位置",
   "Above the main bar": "主快捷列上方",
   "Below the main bar": "主快捷列下方",
-  "Own position": "自訂位置"
+  "Own position": "自訂位置",
+  "Slot shape": "欄位形狀",
+  "Square uses the Nordic UI frame. The other shapes cut the pictures to their outline;\nFrame and Slot background in Colors color them.": "方形使用 Nordic UI 邊框。其他形狀會把圖示裁成該形狀；\n可用 顏色 中的 邊框 與 欄位背景 調整顏色。",
+  "Cooldown": "冷卻",
+  "How a slot shows the time until it can be used again: a dark part that shrinks\ntowards the bottom, or one that sweeps around like a clock.": "欄位顯示可再次使用前剩餘時間的方式：向下縮小的暗色部分，\n或像時鐘指針一樣轉動的暗色部分。",
+  "Square (Nordic)": "方形 (Nordic)",
+  "Rounded square": "圓角方形",
+  "Circle": "圓形",
+  "Hexagon": "六角形",
+  "Diamond": "菱形",
+  "Shrinks downwards": "向下縮小",
+  "Clock sweep": "時鐘轉動"
 }

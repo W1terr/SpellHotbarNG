@@ -6,6 +6,7 @@
 #include "casting/ShoutCooldowns.h"
 #include "casting/SpellCharges.h"
 #include "casting/StrangeRunes.h"
+#include "casting/TrueDirectionalMovement.h"
 #include "casting/VanillaCast.h"
 #include "core/Util.h"
 
@@ -924,6 +925,8 @@ namespace Actions
 		BeastCast::Update(a_delta);
 		CastAnim::Update(a_delta);
 		StrangeRunes::Update(a_delta);
+		// True Directional Movement would turn the character to where it walks while charging / channeling
+		TrueDirectionalMovement::FaceCrosshair(cast && PlayerControl::AimsAtCrosshair(cast->item));
 
 		// A press while the bar is busy (charging, recovery, release animation playing / blending out) is used as
 		// soon as it's free. Use() queues it again while the animation still blocks.
@@ -1024,6 +1027,7 @@ namespace Actions
 		VanillaCast::Reset();
 		BeastCast::Reset();
 		CastAnim::Reset();
+		TrueDirectionalMovement::FaceCrosshair(false);
 		ShoutCooldowns::Reset();
 		StrangeRunes::Reset();
 		queued.reset();

@@ -142,6 +142,8 @@ namespace Config
 		j["columns"] = s.columns;
 		j["iconSize"] = s.iconSize;
 		j["spacing"] = s.spacing;
+		j["slotShape"] = static_cast<int>(s.slotShape);
+		j["cooldownStyle"] = static_cast<int>(s.cooldownStyle);
 		j["slotOffsets"] = s.slotOffsets;
 		j["extraBarAlwaysShown"] = s.extraBarAlwaysShown;
 		j["extraBarScale"] = s.extraBarScale;
@@ -215,6 +217,8 @@ namespace Config
 		Read(j, "columns", s.columns);
 		Read(j, "iconSize", s.iconSize);
 		Read(j, "spacing", s.spacing);
+		Read(j, "slotShape", s.slotShape);
+		Read(j, "cooldownStyle", s.cooldownStyle);
 		ReadArray(j, "slotOffsets", s.slotOffsets);
 		ReadArray(j, "extraBarAlwaysShown", s.extraBarAlwaysShown);
 		Read(j, "extraBarScale", s.extraBarScale);
@@ -292,6 +296,8 @@ namespace Config
 		s.columns = std::clamp(s.columns, 1, kMaxSlots);
 		s.iconSize = std::clamp(s.iconSize, 16.0f, 200.0f);
 		s.spacing = std::clamp(s.spacing, 0.0f, 100.0f);
+		s.slotShape = static_cast<SlotShape>(std::clamp(static_cast<int>(s.slotShape), 0, 4));
+		s.cooldownStyle = static_cast<CooldownStyle>(std::clamp(static_cast<int>(s.cooldownStyle), 0, 1));
 		for (auto& offset : s.slotOffsets) {
 			offset[0] = std::clamp(offset[0], -kMaxSlotOffset, kMaxSlotOffset);
 			offset[1] = std::clamp(offset[1], -kMaxSlotOffset, kMaxSlotOffset);

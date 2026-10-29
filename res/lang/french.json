@@ -222,5 +222,16 @@
   "Place": "Emplacement",
   "Above the main bar": "Au-dessus de la barre principale",
   "Below the main bar": "Sous la barre principale",
-  "Own position": "Position personnalisée"
+  "Own position": "Position personnalisée",
+  "Slot shape": "Forme des emplacements",
+  "Square uses the Nordic UI frame. The other shapes cut the pictures to their outline;\nFrame and Slot background in Colors color them.": "Carré utilise le cadre Nordic UI. Les autres formes découpent les images selon leur contour ;\nCadre et Fond des emplacements dans Couleurs les colorent.",
+  "Cooldown": "Recharge",
+  "How a slot shows the time until it can be used again: a dark part that shrinks\ntowards the bottom, or one that sweeps around like a clock.": "Comment un emplacement montre le temps avant de pouvoir resservir : une partie sombre qui rétrécit\nvers le bas, ou qui tourne comme une aiguille d'horloge.",
+  "Square (Nordic)": "Carré (Nordic)",
+  "Rounded square": "Carré arrondi",
+  "Circle": "Cercle",
+  "Hexagon": "Hexagone",
+  "Diamond": "Losange",
+  "Shrinks downwards": "Rétrécit vers le bas",
+  "Clock sweep": "Aiguille d'horloge"
 }

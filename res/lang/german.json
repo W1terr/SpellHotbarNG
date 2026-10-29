@@ -222,5 +222,16 @@
   "Place": "Platz",
   "Above the main bar": "Über der Hauptleiste",
   "Below the main bar": "Unter der Hauptleiste",
-  "Own position": "Eigene Position"
+  "Own position": "Eigene Position",
+  "Slot shape": "Platzform",
+  "Square uses the Nordic UI frame. The other shapes cut the pictures to their outline;\nFrame and Slot background in Colors color them.": "Quadrat nutzt den Nordic-UI-Rahmen. Die anderen Formen schneiden die Bilder auf ihren Umriss zu;\nRahmen und Platzhintergrund unter Farben färben sie.",
+  "Cooldown": "Abklingzeit",
+  "How a slot shows the time until it can be used again: a dark part that shrinks\ntowards the bottom, or one that sweeps around like a clock.": "Wie ein Platz die Zeit bis zur nächsten Nutzung zeigt: ein dunkler Teil, der nach unten\nschrumpft, oder einer, der wie ein Uhrzeiger herumläuft.",
+  "Square (Nordic)": "Quadrat (Nordic)",
+  "Rounded square": "Abgerundetes Quadrat",
+  "Circle": "Kreis",
+  "Hexagon": "Sechseck",
+  "Diamond": "Raute",
+  "Shrinks downwards": "Schrumpft nach unten",
+  "Clock sweep": "Uhrzeiger"
 }

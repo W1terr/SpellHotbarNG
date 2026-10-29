@@ -4,6 +4,7 @@
 #include "casting/FirstPersonArms.h"
 #include "casting/Replacers.h"
 #include "casting/SpellCharges.h"
+#include "casting/TrueDirectionalMovement.h"
 #include "core/Config.h"
 #include "core/GridInventory.h"
 #include "ui/Icons.h"
@@ -37,6 +38,7 @@ namespace
 		switch (a_msg->type) {
 		case SKSE::MessagingInterface::kPostLoad:
 			CastAnim::RegisterCondition();
+			TrueDirectionalMovement::Init();
 			break;
 		case SKSE::MessagingInterface::kPostPostLoad:
 			FirstPersonArms::Install();       // after camera mods hooked the same call at their load
