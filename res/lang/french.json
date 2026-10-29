@@ -221,5 +221,6 @@
   "Turn on an extra bar in Bindings > Hotkeys first.": "Active d'abord une barre supplémentaire dans Attributions > Touches.",
   "Place": "Emplacement",
   "Above the main bar": "Au-dessus de la barre principale",
-  "Below the main bar": "Sous la barre principale"
+  "Below the main bar": "Sous la barre principale",
+  "Own position": "Position personnalisée"
 }

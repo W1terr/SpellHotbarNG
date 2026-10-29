@@ -56,11 +56,12 @@ enum class IconStyle : int
 	kInventoryAll     // SkyUI's inventory / magic menu icons for everything
 };
 
-// Where always shown extra bars sit, as smaller bars next to the bar in front
+// Where always shown extra bars sit, as smaller bars next to the bar in front or at a place of their own
 enum class ExtraBarPlace : int
 {
 	kAbove = 0,
-	kBelow
+	kBelow,
+	kOwnPosition  // extraBarAnchor / extraBarOffsetX / Y, stacked downwards from there
 };
 
 // How the main bar key opens the main bar
@@ -101,6 +102,9 @@ struct Settings
 	std::array<bool, kModifierCount> extraBarAlwaysShown{ false, false, false };
 	float                            extraBarScale{ 0.7f };
 	ExtraBarPlace                    extraBarPlace{ ExtraBarPlace::kAbove };
+	Anchor                           extraBarAnchor{ Anchor::kBottom };
+	float                            extraBarOffsetX{ 0.0f };
+	float                            extraBarOffsetY{ -200.0f };
 	Anchor     anchor{ Anchor::kBottom };
 	float      offsetX{ 0.0f };
 	float      offsetY{ -100.0f };

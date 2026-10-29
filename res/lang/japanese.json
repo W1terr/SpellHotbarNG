@@ -221,5 +221,6 @@
   "Turn on an extra bar in Bindings > Hotkeys first.": "先に 割り当て > キー設定 で追加バーを有効にしてください。",
   "Place": "位置",
   "Above the main bar": "メインバーの上",
-  "Below the main bar": "メインバーの下"
+  "Below the main bar": "メインバーの下",
+  "Own position": "任意の位置"
 }

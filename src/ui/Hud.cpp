@@ -449,35 +449,57 @@ namespace UI
 		float stackBottom = origin.y + height;
 		const auto alwaysShown = [&](int a_bar) { return settings.modifierEnabled[a_bar] && settings.extraBarAlwaysShown[a_bar]; };
 		if (std::ranges::any_of(std::views::iota(0, kModifierCount), alwaysShown)) {
-			const float smallSize = size * settings.extraBarScale;
-			const float smallSpacing = spacing * settings.extraBarScale;
-			const float smallWidth = cols * smallSize + (cols - 1) * smallSpacing;
-			const float smallHeight = rows * smallSize + (rows - 1) * smallSpacing;
-			const float gap = std::max(spacing, 6.0f * scale) + size * 0.1f;  // the charge bar under a slot fits in between
-			const bool  below = settings.extraBarPlace == ExtraBarPlace::kBelow;
-			const auto  stackOrigin = barOrigin(slide);
-			const float labelSize = std::max(9.0f, smallSize * 0.3f);
+			// the pages shown small: every always shown extra bar and the main bar, except the one in front. The main bar
+			// keeps hiding where it hides in front (Oblivion style, main bar key).
+			struct SmallBar
+			{
+				Page  page;
+				int   bar;  // extra bar index, -1 for the main bar
+				float alpha;
+			};
+			std::vector<SmallBar> smallBars;
 			for (int i = 0; i < kPageCount; ++i) {
 				const auto other = static_cast<Page>(i);
 				const int  bar = i - static_cast<int>(Page::kModifier1);
 				if (other == page || (other != Page::kMain && !alwaysShown(bar))) {
 					continue;
 				}
-				// the main bar keeps hiding where it hides in front (Oblivion style, main bar key)
-				const float barAlpha = other == Page::kMain ? mainAlpha : alpha;
-				if (barAlpha <= 0.01f) {
-					continue;
+				if (const float barAlpha = other == Page::kMain ? mainAlpha : alpha; barAlpha > 0.01f) {
+					smallBars.push_back({ other, other == Page::kMain ? -1 : bar, barAlpha });
 				}
-				const ImVec2 o{ stackOrigin.x + (width - smallWidth) * 0.5f, below ? stackBottom + gap : stackTop - gap - smallHeight };
-				if (below) {
+			}
+
+			const float smallSize = size * settings.extraBarScale;
+			const float smallSpacing = spacing * settings.extraBarScale;
+			const float smallWidth = cols * smallSize + (cols - 1) * smallSpacing;
+			const float smallHeight = rows * smallSize + (rows - 1) * smallSpacing;
+			const float gap = std::max(spacing, 6.0f * scale) + size * 0.1f;  // the charge bar under a slot fits in between
+			const float labelSize = std::max(9.0f, smallSize * 0.3f);
+			// next to the bar in front (stacked away from it), or at their own place (stacked downwards)
+			const bool own = settings.extraBarPlace == ExtraBarPlace::kOwnPosition;
+			const bool below = settings.extraBarPlace == ExtraBarPlace::kBelow;
+			const auto smallCount = static_cast<float>(smallBars.size());
+			const auto ownOrigin = Origin(settings.extraBarAnchor, settings.extraBarOffsetX, settings.extraBarOffsetY,
+				{ smallWidth, smallCount * smallHeight + std::max(0.0f, smallCount - 1.0f) * gap }, screen, scale, slide);
+			const auto stackOrigin = barOrigin(slide);
+			float      ownY = ownOrigin.y;
+			const float stackX = stackOrigin.x + (width - smallWidth) * 0.5f;
+			for (const auto& [other, bar, barAlpha] : smallBars) {
+				ImVec2 o;
+				if (own) {
+					o = { ownOrigin.x, ownY };
+					ownY += smallHeight + gap;
+				} else if (below) {
+					o = { stackX, stackBottom + gap };
 					stackBottom = o.y + smallHeight;
 				} else {
+					o = { stackX, stackTop - gap - smallHeight };
 					stackTop = o.y;
 				}
 				const auto smallStyle = MakeStyle(settings, smallSize, barAlpha);
 				drawBar(other, o, smallStyle, smallSpacing, false);
 				// which bar it is: its key on the left
-				if (settings.showPageName && other != Page::kMain) {
+				if (settings.showPageName && bar >= 0) {
 					const auto label = Hotkeys::Label(settings, settings.modifierKeys[bar]);
 					const auto ts = TextSize(labelSize, label);
 					const ImVec2 at{ std::max(0.0f, o.x - ts.x - smallSpacing - 4.0f), o.y + (smallSize - ts.y) * 0.5f };

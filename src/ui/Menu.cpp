@@ -21,7 +21,7 @@ namespace UI
 			"After pressing a hotbar key" };
 		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
 		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
-		constexpr const char* kExtraBarPlaceNames[] = { "Above the main bar", "Below the main bar" };  // order of ExtraBarPlace
+		constexpr const char* kExtraBarPlaceNames[] = { "Above the main bar", "Below the main bar", "Own position" };  // order of ExtraBarPlace
 		constexpr const char* kHandNames[] = { "Hand|Auto", "Hand|Right", "Hand|Left", "Hand|Both" };  // order of Hand
 		constexpr const char* kKeyModeNames[] = { "Cast right away", "Equip", "Oblivion style" };       // order of KeyMode
 		constexpr const char* kPictureSourceNames[] = { "All", "Spell Hotbar NG", "SpellHotbar2 icon packs" };  // icon picker filter
@@ -350,6 +350,11 @@ namespace UI
 			if (Combo(Id("Place", "extraBarPlace").c_str(), &place, placeNames.data(), static_cast<int>(placeNames.size()))) {
 				s.extraBarPlace = static_cast<ExtraBarPlace>(place);
 				Changed(true);
+			}
+			if (s.extraBarPlace == ExtraBarPlace::kOwnPosition) {
+				Indent();
+				PositionOptions(s.extraBarAnchor, s.extraBarOffsetX, s.extraBarOffsetY, "extraBar", false);
+				Unindent();
 			}
 		}
 

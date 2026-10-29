@@ -221,5 +221,6 @@
   "Turn on an extra bar in Bindings > Hotkeys first.": "請先在 綁定 > 按鍵 中啟用額外快捷列。",
   "Place": "位置",
   "Above the main bar": "主快捷列上方",
-  "Below the main bar": "主快捷列下方"
+  "Below the main bar": "主快捷列下方",
+  "Own position": "自訂位置"
 }
