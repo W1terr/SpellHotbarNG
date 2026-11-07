@@ -10,6 +10,7 @@ namespace Hotkeys
 		constexpr auto kSlotsSection = "Slots";
 		constexpr auto kExtraBarsSection = "Extra Bars";
 		constexpr auto kMainBarSection = "Main Bar";
+		constexpr auto kPickingSection = "Slot Picking";
 		constexpr auto kOblivionSection = "Oblivion Style";  // Hotkey Atlas shows sections as the Context column
 
 		std::filesystem::path Path()
@@ -59,6 +60,10 @@ namespace Hotkeys
 			if (a_key >= modifiers.data() && a_key < modifiers.data() + modifiers.size()) {
 				return Setting{ kExtraBarsSection, std::format("Extra_Bar_{}_Key", a_key - modifiers.data() + 1) };
 			}
+			const auto& combos = a_settings.modifierComboKeys;
+			if (a_key >= combos.data() && a_key < combos.data() + combos.size()) {
+				return Setting{ kExtraBarsSection, std::format("Extra_Bar_{}_First_Key", a_key - combos.data() + 1) };
+			}
 			if (a_key == &a_settings.mainBarModifier) {
 				return Setting{ kMainBarSection, "Open_Modifier_Key" };
 			}
@@ -67,6 +72,19 @@ namespace Hotkeys
 			}
 			if (a_key == &a_settings.castKey) {
 				return Setting{ kOblivionSection, "Cast_Key" };
+			}
+			const std::pair<const std::uint32_t*, const char*> picking[]{
+				{ &a_settings.pickKey, "Hold_Key" },
+				{ &a_settings.pickPrevKey, "Previous_Slot_Key" },
+				{ &a_settings.pickNextKey, "Next_Slot_Key" },
+				{ &a_settings.pickUseKey, "Use_Key" },
+				{ &a_settings.pickPrevBarKey, "Previous_Bar_Key" },
+				{ &a_settings.pickNextBarKey, "Next_Bar_Key" },
+			};
+			for (const auto& [member, name] : picking) {
+				if (a_key == member) {
+					return Setting{ kPickingSection, name };
+				}
 			}
 			if (a_key == &a_settings.potionKey) {
 				return Setting{ kOblivionSection, "Potion_Key" };
@@ -89,6 +107,11 @@ namespace Hotkeys
 					a_func(a_settings.modifierKeys[i]);
 				}
 			}
+			for (int i = 0; i < kModifierCount; ++i) {
+				if (!a_inUse || (a_settings.modifierEnabled[i] && a_settings.modifierToggle[i] && a_settings.modifierCombo[i])) {
+					a_func(a_settings.modifierComboKeys[i]);
+				}
+			}
 			if (!a_inUse || (a_settings.mainBarKeyEnabled && a_settings.mainBarKeyMode == MainBarKeyMode::kCombo)) {
 				a_func(a_settings.mainBarModifier);
 			}
@@ -98,6 +121,14 @@ namespace Hotkeys
 			if (!a_inUse || a_settings.keyMode == KeyMode::kOblivion) {
 				a_func(a_settings.castKey);
 				a_func(a_settings.potionKey);
+			}
+			if (!a_inUse || a_settings.pickEnabled) {
+				a_func(a_settings.pickKey);
+				a_func(a_settings.pickPrevKey);
+				a_func(a_settings.pickNextKey);
+				a_func(a_settings.pickUseKey);
+				a_func(a_settings.pickPrevBarKey);
+				a_func(a_settings.pickNextBarKey);
 			}
 		}
 
@@ -371,6 +402,15 @@ namespace Hotkeys
 			label = label.empty() ? AtlasName(pad->input) : std::format("{} / {}", label, AtlasName(pad->input));
 		}
 		return label;
+	}
+
+	std::string ExtraBarLabel(const Settings& a_settings, int a_bar)
+	{
+		const auto key = Label(a_settings, a_settings.modifierKeys[a_bar]);
+		if (!a_settings.modifierToggle[a_bar] || !a_settings.modifierCombo[a_bar] || a_settings.modifierComboKeys[a_bar] == Keys::kNone) {
+			return key;
+		}
+		return std::format("{} + {}", Label(a_settings, a_settings.modifierComboKeys[a_bar]), key);
 	}
 
 	bool MovedInHotkeyAtlas(const Settings& a_settings, const std::uint32_t& a_key)

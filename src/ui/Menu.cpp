@@ -1,3 +1,5 @@
+#include "casting/CastAnim.h"
+#include "casting/SpellTiming.h"
 #include "core/Bindings.h"
 #include "core/Config.h"
 #include "core/Hotkeys.h"
@@ -19,7 +21,7 @@ namespace UI
 		constexpr const char* kAnchorNames[] = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" };
 		constexpr const char* kVisibilityNames[] = { "Always", "In combat", "Weapons / magic drawn", "In combat or drawn", "Never (only in menus)", "While sneaking",
 			"After pressing a hotbar key" };
-		constexpr const char* kExtraBarModeNames[] = { "hold", "press" };
+		constexpr const char* kExtraBarModeNames[] = { "hold", "press", "key combo" };
 		constexpr const char* kMainBarModeNames[] = { "press", "key combo", "hold" };  // order of MainBarKeyMode
 		constexpr const char* kSlotShapeNames[] = { "Square (Nordic)", "Rounded square", "Circle", "Hexagon", "Diamond" };  // order of SlotShape
 		constexpr const char* kCooldownStyleNames[] = { "Shrinks downwards", "Clock sweep" };  // order of CooldownStyle
@@ -462,6 +464,7 @@ namespace UI
 		ColorOption("Charge bar", c.chargeBar);
 		ColorOption("Channeling glow", c.channeling, "Highlight of a running concentration spell.");
 		ColorOption("Not enough magicka", c.noMagicka, "Icon tint when the spell costs more magicka than you have.");
+		ColorOption("Picked slot", c.picked, "Frame of the slot picked with slot picking (Bindings > Hotkeys).");
 		if (Button(Id("Reset colors", "resetColors").c_str())) {
 			c = BarColors{};
 			Changed(true);
@@ -566,25 +569,64 @@ namespace UI
 			const auto  modeNames = Translated(kExtraBarModeNames);
 			const float modeColumn = GetCursorPosX() + GetFrameHeight() + GetStyle()->ItemInnerSpacing.x +
 			                         TextWidth({ F("Extra bar {}", kModifierCount) }) + GetStyle()->ItemSpacing.x * 2.0f;
-			const float modeWidth = TextWidth({ modeNames[0], modeNames[1] }) + GetFrameHeight() + GetStyle()->FramePadding.x * 2.0f;
+			const float modeWidth = TextWidth({ modeNames[0], modeNames[1], modeNames[2] }) + GetFrameHeight() + GetStyle()->FramePadding.x * 2.0f;
 			for (int i = 0; i < kModifierCount; ++i) {
 				PushID(i);
 				Changed(Checkbox(std::format("{}###enabled", F("Extra bar {}", i + 1)).c_str(), &s.modifierEnabled[i]));
 				SameLine(modeColumn);
-				int toggle = s.modifierToggle[i] ? 1 : 0;
+				int barMode = !s.modifierToggle[i] ? 0 : s.modifierCombo[i] ? 2 : 1;
 				SetNextItemWidth(modeWidth);
-				if (Combo("##mode", &toggle, modeNames.data(), static_cast<int>(modeNames.size()))) {
-					s.modifierToggle[i] = toggle == 1;
+				if (Combo("##mode", &barMode, modeNames.data(), static_cast<int>(modeNames.size()))) {
+					s.modifierToggle[i] = barMode >= 1;
+					s.modifierCombo[i] = barMode == 2;
 					Changed(true);
 				}
 				SameLine();
+				if (barMode == 2) {
+					KeyButton("comboFirst", &s.modifierComboKeys[i]);
+					SameLine();
+					AlignTextToFramePadding();
+					Text("+");
+					SameLine();
+				}
 				KeyButton("mod", &s.modifierKeys[i]);
 				if (i == 0) {
 					Help("hold: the extra bar is used while you hold its key.\n"
 						 "press: one press switches to the extra bar, the next press goes back to the main bar.\n"
+						 "key combo: the same as press, but only while you hold the first key, like LB + D-pad left\n"
+						 "on a controller. Without the first key, the second key works as always (a slot key, or the game's).\n"
 						 "Another extra bar's key switches straight to that bar.");
 				}
 				PopID();
+			}
+
+			SeparatorText(T("Slot picking"));
+			Changed(Checkbox(Id("Pick slots with a held key", "pickEnabled").c_str(), &s.pickEnabled));
+			Help("For controllers: hold the key, move along the bar with previous / next slot, and use the picked\n"
+				 "slot with the use key. Previous / next bar switch between the main bar and the extra bars that are on.\n"
+				 "While the key is held these keys only pick (the slot keys and the game don't get them);\n"
+				 "let go and they work as always. The hold key itself never reaches the game.\n"
+				 "The bar shows up while you hold the key.");
+			if (s.pickEnabled) {
+				Indent();
+				const std::pair<const char*, std::uint32_t*> pickKeys[]{
+					{ "Hold", &s.pickKey },
+					{ "Previous slot", &s.pickPrevKey },
+					{ "Next slot", &s.pickNextKey },
+					{ "Use", &s.pickUseKey },
+					{ "Previous bar", &s.pickPrevBarKey },
+					{ "Next bar", &s.pickNextBarKey },
+				};
+				const float labelWidth = TextWidth({ T("Hold"), T("Previous slot"), T("Next slot"), T("Use"), T("Previous bar"), T("Next bar") }) +
+				                         GetStyle()->ItemSpacing.x;
+				for (const auto& [label, key] : pickKeys) {
+					const float x = GetCursorPosX();
+					AlignTextToFramePadding();
+					Text("%s", T(label));
+					SameLine(x + labelWidth);
+					KeyButton(label, key);
+				}
+				Unindent();
 			}
 
 			SeparatorText(T("Game controls"));
@@ -628,8 +670,8 @@ namespace UI
 				return T("Main bar");
 			}
 			const int bar = static_cast<int>(a_page) - static_cast<int>(Page::kModifier1);
-			const auto key = KeyLabel(a_settings.modifierKeys[bar]);
-			return a_settings.modifierToggle[bar] ? F("Press {}", key) : F("Hold {}", key);
+			const auto key = Hotkeys::ExtraBarLabel(a_settings, bar);
+			return a_settings.modifierToggle[bar] ? F("Press {}", key.empty() ? "-" : key) : F("Hold {}", key.empty() ? "-" : key);
 		}
 	}
 
@@ -1031,6 +1073,144 @@ namespace UI
 		}
 		if (BeginChild("##iconGrid", ImVec2{ 0.0f, 0.0f }, ImGuiChildFlags_Border)) {
 			IconGrid(target);
+		}
+		EndChild();
+	}
+
+	namespace
+	{
+		// ---- spell timing -------------------------------------------------------------------
+
+		char timingSearch[128]{};
+		bool onlyChangedTiming{ false };
+		bool onlyOnBarTiming{ false };
+
+		// everything on the bar: all bars incl. the extra bars and the Oblivion style cast key
+		std::unordered_set<RE::FormID> FormsOnBar()
+		{
+			std::unordered_set<RE::FormID> out;
+			for (int page = 0; page < kPageCount; ++page) {
+				for (int slot = 0; slot < kMaxSlots; ++slot) {
+					if (const auto form = Bindings::GetForm(static_cast<Page>(page), slot)) {
+						out.insert(form->GetFormID());
+					}
+				}
+			}
+			if (const auto form = Bindings::GetForm(Page::kMain, kReadySpellSlot)) {
+				out.insert(form->GetFormID());
+			}
+			return out;
+		}
+
+		// what a cast from the bar takes without a change: the spell's charge time (at least the casting animation's)
+		float OwnCastTime(RE::TESForm* a_form)
+		{
+			const auto  item = a_form->As<RE::MagicItem>();
+			const float charge = item ? std::max(0.0f, item->GetChargeTime()) : 0.0f;
+			return CastAnim::Available() ? std::max(charge, SpellTiming::kMinCastTime) : charge;
+		}
+
+		// A slider for one of a spell's times: changes it while dragged, saves the file when let go
+		void TimingSlider(RE::TESForm* a_form, SpellTiming::Timing a_timing, float SpellTiming::Timing::*a_field, float a_shown, float a_min,
+			float a_max, const char* a_id, const char* a_format)
+		{
+			float value = a_shown;
+			SetNextItemWidth(170.0f);
+			const bool changed = SliderFloat(a_id, &value, a_min, a_max, a_format, ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp);
+			const bool done = IsItemDeactivatedAfterEdit();
+			if (changed || done) {
+				a_timing.*a_field = value;
+				SpellTiming::Set(a_form, a_timing, done);
+			}
+		}
+	}
+
+	void __stdcall RenderSpellTimingPage()
+	{
+		std::scoped_lock lock(Config::Lock());
+
+		TextWrapped("%s", T("Change how long a spell or scroll takes to cast from the bar, and give it a cooldown. Your changes count for every character."));
+		Help("Cast time: from pressing the key until the spell goes off (fire and forget spells and scrolls;\n"
+			 "concentration spells cast while the key is held). Shortest: 0.25 s, the casting animation.\n"
+			 "Cooldown: after a cast from the bar, the spell can't be cast from it again for that long\n"
+			 "(concentration spells: after you let go). The slot shows the time left.\n"
+			 "Both only change casts from the bar. Equip mode and the vampire lord's or lich's hands\n"
+			 "keep the spell's own cast time (the cooldown still counts).\n"
+			 "Ctrl + click a slider to type a number.");
+
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		if (!player || !player->Is3DLoaded()) {
+			TextWrapped("%s", T("Load a save to see your spells."));
+			return;
+		}
+		RefreshIconForms();
+		Spacing();
+
+		SetNextItemWidth(260.0f);
+		InputTextWithHint("##timingSearch", T("Search"), timingSearch, sizeof(timingSearch));
+		SameLine();
+		Checkbox(Id("Only changed ones", "onlyChangedTiming").c_str(), &onlyChangedTiming);
+		SameLine();
+		Checkbox(Id("Only ones on the bar", "onlyOnBarTiming").c_str(), &onlyOnBarTiming);
+		const auto onBar = onlyOnBarTiming ? FormsOnBar() : std::unordered_set<RE::FormID>{};
+
+		const float iconSize = GetFrameHeight() * 1.3f;
+		if (BeginChild("##timingForms", ImVec2{ 0.0f, 0.0f }, ImGuiChildFlags_Border)) {
+			int shown = 0;
+			if (BeginTable("##timing", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit)) {
+				TableSetupColumn(T("Spell / scroll"), ImGuiTableColumnFlags_WidthStretch, 0.0f);
+				TableSetupColumn(T("Cast time"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
+				TableSetupColumn(T("Cooldown"), ImGuiTableColumnFlags_WidthFixed, 0.0f);
+				TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+				TableHeadersRow();
+				const auto ownText = std::format("%.2f s ({})", T("Timing|own"));
+				const auto offText = std::string(T("Timing|off"));
+				for (const auto id : iconForms) {
+					const auto form = RE::TESForm::LookupByID(id);
+					if (!SpellTiming::CanHaveTiming(form) || (onlyOnBarTiming && !onBar.contains(id)) || !Contains(FormLabel(form), timingSearch)) {
+						continue;
+					}
+					const auto timing = SpellTiming::Get(form);
+					if (onlyChangedTiming && timing.Empty()) {
+						continue;
+					}
+					++shown;
+					PushID(static_cast<int>(id));
+					TableNextRow();
+					TableNextColumn();
+					IconImage(form, iconSize);
+					SameLine();
+					AlignTextToFramePadding();
+					Text("%s", FormLabel(form).c_str());
+					SameLine();
+					TextColored(kGrey, "%s", TypeName(form));
+
+					TableNextColumn();
+					if (SpellTiming::CanHaveCastTime(form)) {
+						// unchanged: the spell's own time (the slider starts there)
+						const bool own = timing.castTime <= 0.0f;
+						TimingSlider(form, timing, &SpellTiming::Timing::castTime, own ? OwnCastTime(form) : timing.castTime, SpellTiming::kMinCastTime,
+							SpellTiming::kMaxCastTime, "##castTime", own ? ownText.c_str() : "%.2f s");
+					} else {
+						AlignTextToFramePadding();
+						TextDisabled("%s", T("while held"));
+					}
+
+					TableNextColumn();
+					TimingSlider(form, timing, &SpellTiming::Timing::cooldown, timing.cooldown, 0.0f, SpellTiming::kMaxCooldown, "##cooldown",
+						timing.cooldown <= 0.0f ? offText.c_str() : "%.1f s");
+
+					TableNextColumn();
+					if (!timing.Empty() && SmallButton(Id("Reset", "reset").c_str())) {
+						SpellTiming::Set(form, {});
+					}
+					PopID();
+				}
+				EndTable();
+			}
+			if (shown == 0) {
+				TextDisabled("%s", T("Nothing found."));
+			}
 		}
 		EndChild();
 	}

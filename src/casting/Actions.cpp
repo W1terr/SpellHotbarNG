@@ -5,6 +5,7 @@
 #include "casting/PlayerControl.h"
 #include "casting/ShoutCooldowns.h"
 #include "casting/SpellCharges.h"
+#include "casting/SpellTiming.h"
 #include "casting/StrangeRunes.h"
 #include "casting/TrueDirectionalMovement.h"
 #include "casting/VanillaCast.h"
@@ -36,6 +37,7 @@ namespace Actions
 			bool              channeling{ false };
 			bool              animated{ false };  // casting animation through OAR (CastAnim)
 			bool              releaseAnimPlayed{ false };
+			bool              fired{ false };  // the spell went off (its cooldown starts when the cast ends)
 			float             animLoopTimer{ 0.0f };
 			RE::BSSoundHandle chargeSound{};
 			RE::BSSoundHandle loopSound{};
@@ -59,6 +61,7 @@ namespace Actions
 		constexpr float kTurnSpeed = 10.0f;         // radians per second the character turns to the camera while charging
 		constexpr auto  kCostCacheTime = 250ms;     // how long the HUD's magicka costs are reused
 		constexpr float kDualStateLinger = 0.25f;   // the actor stays "dual casting" this long after a dual cast ended
+		constexpr float kCooldownQueueTime = 0.5f;  // a press this close to the end of a spell's cooldown waits for it
 
 		// a slot pressed while the previous cast was still charging / recovering
 		struct Queued
@@ -406,6 +409,9 @@ namespace Actions
 			StopSound(cast->loopSound);
 			CastAnim::StopHandArt();
 			StrangeRunes::Stop();
+			if (cast->fired) {
+				SpellTiming::StartCooldown(cast->item);
+			}
 			if (cast->dual) {
 				// not right away: spell cast events and effects of the cast may still be on their way
 				dualStateClear = kDualStateLinger;
@@ -529,6 +535,7 @@ namespace Actions
 				return false;
 			}
 
+			cast->fired = true;
 			PlayEffectSound(item, RE::MagicSystem::SoundID::kRelease);
 			if (concentration) {
 				cast->channeling = true;
@@ -570,9 +577,10 @@ namespace Actions
 
 			PlayerControl::StopSprinting();
 
-			// with animation whenever Open Animation Replacer is there; spells always take their real charge time
+			// with animation whenever Open Animation Replacer is there; spells take their real charge time unless the
+			// player gave them their own (Spell Timing page)
 			next.animated = CastAnim::Available();
-			next.chargeTotal = concentration ? 0.0f : std::max(0.0f, a_item->GetChargeTime());
+			next.chargeTotal = concentration ? 0.0f : SpellTiming::CastTime(a_item).value_or(std::max(0.0f, a_item->GetChargeTime()));
 			// which hand(s) the animation and hand glow use
 			const bool twoHands = next.dual || next.bothHands;
 			const auto side = twoHands || a_item->IsTwoHanded()     ? CastAnim::Side::kBoth :
@@ -627,6 +635,24 @@ namespace Actions
 			}
 		}
 
+		// The spell's own cooldown (Spell Timing page) still runs: a press just before it ends is cast right after it,
+		// earlier ones fail like a shout that isn't ready
+		bool WaitsForCooldown(RE::MagicItem* a_item, Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld)
+		{
+			const auto remaining = SpellTiming::Cooldown(a_item).first;
+			if (remaining <= 0.0f) {
+				return false;
+			}
+			if (remaining <= kCooldownQueueTime) {
+				LogPress(a_slot, a_item, "waits for its cooldown");
+				Queue(a_page, a_slot, a_key, a_keyHeld);
+			} else {
+				LogPress(a_slot, a_item, std::format("on cooldown, {:.1f} s left", remaining));
+				FailFeedback();
+			}
+			return true;
+		}
+
 		void UseSpell(RE::SpellItem* a_spell, const SlotBinding& a_binding, Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld)
 		{
 			if (!KnowsSpell(a_spell)) {
@@ -647,6 +673,9 @@ namespace Actions
 			case SpellType::kSpell:
 				break;
 			default:
+				return;
+			}
+			if (WaitsForCooldown(a_spell, a_page, a_slot, a_key, a_keyHeld)) {
 				return;
 			}
 
@@ -686,6 +715,9 @@ namespace Actions
 			if (ItemCount(a_scroll) <= 0) {
 				LogPress(a_slot, a_scroll, "none left");
 				FailFeedback();
+				return;
+			}
+			if (WaitsForCooldown(a_scroll, a_page, a_slot, a_key, a_keyHeld)) {
 				return;
 			}
 			if (!cast) {
@@ -909,6 +941,7 @@ namespace Actions
 	{
 		gcdRemaining = std::max(0.0f, gcdRemaining - a_delta);
 		potionRemaining = std::max(0.0f, potionRemaining - a_delta);
+		SpellTiming::Update(a_delta);
 		if (const auto player = Player(); player && player->IsInMidair()) {
 			airTime += a_delta;
 		} else {
@@ -1029,6 +1062,7 @@ namespace Actions
 		CastAnim::Reset();
 		TrueDirectionalMovement::FaceCrosshair(false);
 		ShoutCooldowns::Reset();
+		SpellTiming::Clear();
 		StrangeRunes::Reset();
 		queued.reset();
 		cast.reset();
@@ -1056,6 +1090,15 @@ namespace Actions
 		return info;
 	}
 
+	namespace
+	{
+		// of two waits, the one that ends later
+		std::pair<float, float> Longer(std::pair<float, float> a_one, std::pair<float, float> a_other)
+		{
+			return a_other.first > a_one.first ? a_other : a_one;
+		}
+	}
+
 	std::pair<float, float> Cooldown(RE::TESForm* a_form)
 	{
 		if (!a_form) {
@@ -1079,12 +1122,12 @@ namespace Actions
 					return ShoutCooldowns::Get(a_form);
 				}
 				if (type == SpellType::kSpell) {
-					return { gcdRemaining, gcdTotal };
+					return Longer({ gcdRemaining, gcdTotal }, SpellTiming::Cooldown(a_form));
 				}
 				return { 0.0f, 0.0f };
 			}
 		case RE::FormType::Scroll:
-			return { gcdRemaining, gcdTotal };
+			return Longer({ gcdRemaining, gcdTotal }, SpellTiming::Cooldown(a_form));
 		default:
 			return { 0.0f, 0.0f };
 		}

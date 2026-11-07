@@ -4,6 +4,7 @@
 #include "casting/FirstPersonArms.h"
 #include "casting/Replacers.h"
 #include "casting/SpellCharges.h"
+#include "casting/SpellTiming.h"
 #include "casting/TrueDirectionalMovement.h"
 #include "core/Config.h"
 #include "core/GridInventory.h"
@@ -51,6 +52,7 @@ namespace
 				Config::Load();
 				CastAnim::LoadTimings();
 				SpellCharges::Load();
+				SpellTiming::Load();
 			}
 			ItemIcons::Register();
 			if (!UI::Register()) {

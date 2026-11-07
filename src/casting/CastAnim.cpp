@@ -5,6 +5,7 @@
 #include "casting/Replacers.h"
 #include "casting/ShoutBlend.h"
 #include "casting/VanillaCast.h"
+#include "OAR2-ConditionTypes.h"
 #include "OpenAnimationReplacerAPI-Conditions.h"
 
 namespace CastAnim
@@ -56,34 +57,64 @@ namespace CastAnim
 		// Side 0 entries apply to every side.
 		std::map<std::tuple<bool, int, int>, float> timings;
 
-		class CastingCondition : public Conditions::CustomCondition
+		// The condition's components and texts. Open Animation Replacer 3.x and 2.x (e.g. 2.3.6, still in big mod lists)
+		// have different condition classes: CastingCondition is built on one or the other.
+		constexpr auto kTypeDescription =
+			"Casting animation of the running hotbar cast. 0 = any, 1 aimed, 2 self, 3 aimed concentration, "
+			"4 self concentration, 5 dual aimed, 6 dual self, 7 dual concentration, 8 ritual (two-handed spell), "
+			"9 dual self concentration.";
+		constexpr auto kHandDescription = "Hand of the running hotbar cast. 0 = any, 1 right, 2 left. Dual casts and two-handed spells only match 0.";
+		constexpr auto kShoutStateDescription =
+			"1 = only while the hotbar cast keeps the behavior graph in the shout state (for clips that are also "
+			"used outside of it, like the 1st person walk / run inside the shout behavior). 0 = also during the "
+			"release / stop animation afterwards.";
+		constexpr auto kPhaseDescription =
+			"0 = any, 1 = charging / channeling, 2 = release animation playing, 3 = release animation done. Use it "
+			"with Interruptible for looping clips that start while charging (1st person walk / run).";
+		constexpr auto kVariantDescription =
+			"0 = any. Otherwise only when the running cast picked this clip of an installed casting animation mod "
+			"(set by the submods Spell Hotbar NG generates in SpellHotbarNG_Replacers, don't use it yourself).";
+
+		// Runs inside NotifyAnimationGraph / on Havok threads: no logging or game calls here. (Don't read
+		// hkbClipGenerator strings either: formatting them crashed on 1.7.)
+		bool Matches(RE::TESObjectREFR* a_refr, int a_type, int a_hand, bool a_shoutState, int a_phase, int a_variant)
+		{
+			if (!a_refr || !a_refr->IsPlayerRef()) {
+				return false;
+			}
+			const int type = current.load();
+			if (type == 0 || (a_type != 0 && a_type != type)) {
+				return false;
+			}
+			if (a_shoutState && !shoutActive.load()) {
+				return false;
+			}
+			if (a_phase != 0 && a_phase != phase.load()) {
+				return false;
+			}
+			if (a_variant != 0 && !Replacers::Matches(a_variant)) {
+				return false;
+			}
+			return (a_hand != 1 && a_hand != 2) || a_hand == currentSide.load();
+		}
+
+		// Base: the API's CustomCondition, Numeric: its numeric component (kNumericType its type id)
+		template <class Base, class Numeric, auto kNumericType>
+		class CastingConditionFor : public Base
 		{
 		public:
 			constexpr static inline std::string_view CONDITION_NAME = "SpellHotbarNG_Casting"sv;
 
-			CastingCondition()
+			CastingConditionFor()
 			{
-				_type = static_cast<Conditions::INumericConditionComponent*>(
-					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Animation",
-						"Casting animation of the running hotbar cast. 0 = any, 1 aimed, 2 self, 3 aimed concentration, "
-						"4 self concentration, 5 dual aimed, 6 dual self, 7 dual concentration, 8 ritual (two-handed spell), "
-						"9 dual self concentration."));
-				_hand = static_cast<Conditions::INumericConditionComponent*>(
-					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Hand",
-						"Hand of the running hotbar cast. 0 = any, 1 right, 2 left. Dual casts and two-handed spells only match 0."));
-				_shoutState = static_cast<Conditions::INumericConditionComponent*>(
-					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "ShoutState",
-						"1 = only while the hotbar cast keeps the behavior graph in the shout state (for clips that are also "
-						"used outside of it, like the 1st person walk / run inside the shout behavior). 0 = also during the "
-						"release / stop animation afterwards."));
-				_phase = static_cast<Conditions::INumericConditionComponent*>(
-					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Phase",
-						"0 = any, 1 = charging / channeling, 2 = release animation playing, 3 = release animation done. Use it "
-						"with Interruptible for looping clips that start while charging (1st person walk / run)."));
-				_variant = static_cast<Conditions::INumericConditionComponent*>(
-					AddBaseComponent(Conditions::ConditionComponentType::kNumeric, "Variant",
-						"0 = any. Otherwise only when the running cast picked this clip of an installed casting animation mod "
-						"(set by the submods Spell Hotbar NG generates in SpellHotbarNG_Replacers, don't use it yourself)."));
+				const auto add = [this](const char* a_name, const char* a_description) {
+					return static_cast<Numeric*>(this->AddBaseComponent(kNumericType, a_name, a_description));
+				};
+				_type = add("Animation", kTypeDescription);
+				_hand = add("Hand", kHandDescription);
+				_shoutState = add("ShoutState", kShoutStateDescription);
+				_phase = add("Phase", kPhaseDescription);
+				_variant = add("Variant", kVariantDescription);
 			}
 
 			RE::BSString GetName() const override { return CONDITION_NAME.data(); }
@@ -103,41 +134,35 @@ namespace CastAnim
 			}
 
 		protected:
-			// Runs inside NotifyAnimationGraph / on Havok threads: no logging or game calls here. (Don't read
-			// hkbClipGenerator strings either: formatting them crashed on 1.7.)
-			bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator*, void*) const override
+			bool EvaluateCast(RE::TESObjectREFR* a_refr) const
 			{
-				if (!a_refr || !a_refr->IsPlayerRef()) {
-					return false;
-				}
-				const int type = current.load();
-				if (type == 0) {
-					return false;
-				}
-				const int wanted = static_cast<int>(_type->GetNumericValue(a_refr));
-				if (wanted != 0 && wanted != type) {
-					return false;
-				}
-				if (_shoutState->GetNumericValue(a_refr) >= 1.0f && !shoutActive.load()) {
-					return false;
-				}
-				const int wantedPhase = static_cast<int>(_phase->GetNumericValue(a_refr));
-				if (wantedPhase != 0 && wantedPhase != phase.load()) {
-					return false;
-				}
-				const int variant = static_cast<int>(_variant->GetNumericValue(a_refr));
-				if (variant != 0 && !Replacers::Matches(variant)) {
-					return false;
-				}
-				const int hand = static_cast<int>(_hand->GetNumericValue(a_refr));
-				return (hand != 1 && hand != 2) || hand == currentSide.load();
+				return Matches(a_refr, static_cast<int>(_type->GetNumericValue(a_refr)), static_cast<int>(_hand->GetNumericValue(a_refr)),
+					_shoutState->GetNumericValue(a_refr) >= 1.0f, static_cast<int>(_phase->GetNumericValue(a_refr)),
+					static_cast<int>(_variant->GetNumericValue(a_refr)));
 			}
 
-			Conditions::INumericConditionComponent* _type;
-			Conditions::INumericConditionComponent* _hand;
-			Conditions::INumericConditionComponent* _shoutState;
-			Conditions::INumericConditionComponent* _phase;
-			Conditions::INumericConditionComponent* _variant;
+			Numeric* _type;
+			Numeric* _hand;
+			Numeric* _shoutState;
+			Numeric* _phase;
+			Numeric* _variant;
+		};
+
+		// Open Animation Replacer 3.x
+		class CastingCondition :
+			public CastingConditionFor<Conditions::CustomCondition, Conditions::INumericConditionComponent, Conditions::ConditionComponentType::kNumeric>
+		{
+		protected:
+			bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator*, void*) const override { return EvaluateCast(a_refr); }
+		};
+
+		// Open Animation Replacer 2.x
+		class CastingCondition2 :
+			public CastingConditionFor<OAR2::Conditions::CustomCondition, OAR2::Conditions::INumericConditionComponent,
+				OAR2::Conditions::ConditionComponentType::kNumeric>
+		{
+		protected:
+			bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator*) const override { return EvaluateCast(a_refr); }
 		};
 
 		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
@@ -434,13 +459,30 @@ namespace CastAnim
 
 	void RegisterCondition()
 	{
-		const auto result = OAR_API::Conditions::AddCustomCondition<CastingCondition>();
-		available = result == OAR_API::Conditions::APIResult::OK || result == OAR_API::Conditions::APIResult::AlreadyRegistered;
-		if (available) {
-			logs::info("Registered OAR condition {}", CastingCondition::CONDITION_NAME);
-		} else {
-			logs::warn("Open Animation Replacer not found (result {}), casting animations are disabled", static_cast<int>(result));
+		// OAR 3.x hands out interface V3; 2.x refuses it and only knows V2, whose conditions have the older layout.
+		// (Never V2 from 3.x: it would hand out its 3.x interface and get a 2.x condition.)
+		if (OAR_API::Conditions::GetAPI()) {
+			const auto result = OAR_API::Conditions::AddCustomCondition<CastingCondition>();
+			available = result == OAR_API::Conditions::APIResult::OK || result == OAR_API::Conditions::APIResult::AlreadyRegistered;
+			if (available) {
+				logs::info("Registered OAR condition {}", CastingCondition::CONDITION_NAME);
+			} else {
+				logs::warn("Open Animation Replacer refused the condition (result {}), casting animations are disabled", static_cast<int>(result));
+			}
+			return;
 		}
+		if (OAR2::GetAPI()) {
+			const auto result = OAR2::AddCustomCondition<CastingCondition2>();
+			available = result == OAR2::APIResult::OK || result == OAR2::APIResult::AlreadyRegistered;
+			if (available) {
+				logs::info("Registered OAR condition {} (Open Animation Replacer 2.x)", CastingCondition2::CONDITION_NAME);
+			} else {
+				logs::warn("Open Animation Replacer 2.x refused the condition (result {}), casting animations are disabled", static_cast<int>(result));
+			}
+			return;
+		}
+		available = false;
+		logs::warn("Open Animation Replacer not found, casting animations are disabled");
 	}
 
 	bool Available()

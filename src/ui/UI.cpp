@@ -44,6 +44,7 @@ namespace UI
 			SidebarPage{ "Bindings", RenderBindingsPage, {} },
 			SidebarPage{ "Bar Layout", RenderBarPage, {} },
 			SidebarPage{ "Icons", RenderIconsPage, {} },
+			SidebarPage{ "Spell Timing", RenderSpellTimingPage, {} },
 			SidebarPage{ "Profiles", RenderProfilesPage, {} },
 		};
 		std::atomic<bool> pageNamesOutdated{ false };

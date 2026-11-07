@@ -254,6 +254,7 @@ namespace UI
 		constexpr float kSlideDistance = 14.0f;  // pixels at 1080p
 
 		constexpr float kPeekTime = 1.5f;        // Oblivion style: the hidden main bar stays this long after a slot key
+		constexpr float kCooldownTextMinTotal = 2.0f;  // cooldowns at least this long show their seconds
 
 		float                                 shown{ 0.0f };      // 0 hidden .. 1 fully shown
 		float                                 mainShown{ 0.0f };  // same for the main bar alone (Oblivion style hides it)
@@ -292,8 +293,10 @@ namespace UI
 				if (!ui->IsShowingMenus() || ui->GameIsPaused()) {
 					return std::nullopt;
 				}
+				// (the Tween menu on Tab and the skills menu hide the game's HUD; unpaused with Skyrim Souls)
 				if (MenuOpen(RE::DialogueMenu::MENU_NAME) || MenuOpen(RE::MapMenu::MENU_NAME) || MenuOpen(RE::LockpickingMenu::MENU_NAME) ||
-					MenuOpen(RE::Console::MENU_NAME) || MenuOpen(RE::FavoritesMenu::MENU_NAME) || MenuOpen(RE::CraftingMenu::MENU_NAME)) {
+					MenuOpen(RE::Console::MENU_NAME) || MenuOpen(RE::FavoritesMenu::MENU_NAME) || MenuOpen(RE::CraftingMenu::MENU_NAME) ||
+					MenuOpen(RE::TweenMenu::MENU_NAME) || MenuOpen(RE::StatsMenu::MENU_NAME)) {
 					return std::nullopt;
 				}
 
@@ -323,6 +326,8 @@ namespace UI
 				default:
 					break;
 				}
+				// slot picking always shows the bar it picks on
+				ctx.visible = ctx.visible || Input::PickedSlot().has_value();
 				ctx.alpha = settings.fadeOutOfCombat && !combat ? settings.fadedOpacity : settings.opacity;
 			} else {
 				ctx.alpha = settings.opacity;
@@ -512,8 +517,11 @@ namespace UI
 					} else if (const auto part = ClipBelow(g.icon, g.iconMax.y - (g.iconMax.y - g.iconMin.y) * frac); part.size() >= 3) {
 						ImDrawListManager::AddConvexPolyFilled(list, part.data(), static_cast<int>(part.size()), st.cooldown);
 					}
-					if (st.showCooldownText && remaining >= 0.95f) {
-						const auto text = remaining < 10.0f ? std::format("{:.1f}", remaining) : std::format("{:.0f}", remaining);
+					// Seconds down to the last tenth (rounded up: "0.0" would look ready while it isn't). Not for the short
+					// wait after every cast (release animation): its sweep is plain to see, numbers on all slots would flicker.
+					if (st.showCooldownText && total >= kCooldownTextMinTotal) {
+						const float tenths = std::ceil(remaining * 10.0f) / 10.0f;
+						const auto  text = tenths < 10.0f ? std::format("{:.1f}", tenths) : std::format("{:.0f}", std::ceil(remaining));
 						const auto ts = TextSize(st.labelSize, text);
 						DrawText(list, st.labelSize, ImVec2{ p0.x + (size - ts.x) * 0.5f, p0.y + (size - ts.y) * 0.5f }, text, colors.text, alpha);
 					}
@@ -589,8 +597,9 @@ namespace UI
 		// Oblivion style: the main bar only shows up for a moment after a slot key (picking or binding), always in the
 		// settings preview; extra bar keys don't bring it up. With the main bar key it only shows while opened (and
 		// while binding).
-		const bool wantMain = (!oblivion || !settings.readyHideMainBar || Input::SinceSlotKey() < kPeekTime) &&
-		                      (ctx->bindMenu || Input::MainBarOpen());
+		const auto picked = ctx->bindMenu || ctx->preview ? std::nullopt : Input::PickedSlot();
+		const bool wantMain = picked || ((!oblivion || !settings.readyHideMainBar || Input::SinceSlotKey() < kPeekTime) &&
+		                                    (ctx->bindMenu || Input::MainBarOpen()));
 		if (ctx->preview) {
 			mainShown = 1.0f;
 		} else {
@@ -667,6 +676,9 @@ namespace UI
 				if (a_front && ctx->preview && slot == PreviewSlot()) {
 					DrawHighlight(a_style, p0, Geometry(a_style, p0), Color(255, 210, 100, 1.0f), 0.08f);
 				}
+				if (a_front && picked == slot) {
+					DrawHighlight(a_style, p0, Geometry(a_style, p0), Color(colors.picked, a_style.alpha), 0.1f);
+				}
 			}
 		};
 		if (mainAlpha > 0.01f) {
@@ -730,7 +742,7 @@ namespace UI
 				drawBar(other, o, smallStyle, smallSpacing, false);
 				// which bar it is: its key on the left
 				if (settings.showPageName && bar >= 0) {
-					const auto label = Hotkeys::Label(settings, settings.modifierKeys[bar]);
+					const auto label = Hotkeys::ExtraBarLabel(settings, bar);
 					const auto ts = TextSize(labelSize, label);
 					const ImVec2 at{ std::max(0.0f, o.x - ts.x - smallSpacing - 4.0f), o.y + (smallSize - ts.y) * 0.5f };
 					DrawText(smallStyle.list, labelSize, at, label, colors.text, barAlpha);
@@ -771,7 +783,7 @@ namespace UI
 				                                          Lang::F("[holding {}]", Hotkeys::Label(settings, settings.modifierKeys[bar])));
 			}
 		} else if (settings.showPageName && page != Page::kMain) {
-			header = Hotkeys::Label(settings, settings.modifierKeys[static_cast<int>(page) - static_cast<int>(Page::kModifier1)]);
+			header = Hotkeys::ExtraBarLabel(settings, static_cast<int>(page) - static_cast<int>(Page::kModifier1));
 		}
 		// above the main bar, or while binding with the main bar hidden (Oblivion style) above the small bar
 		const bool aboveMain = mainAlpha > 0.01f;

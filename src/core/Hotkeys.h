@@ -18,6 +18,9 @@ namespace Hotkeys
 	// input Hotkey Atlas moved it to. Empty for no key. Render thread only (translated text).
 	std::string Label(const Settings& a_settings, const std::uint32_t& a_key);
 
+	// What switches to an extra bar: its key, or "first key + key" in key combo mode
+	std::string ExtraBarLabel(const Settings& a_settings, int a_bar);
+
 	// Hotkey Atlas moved this key of `a_settings` somewhere else
 	bool MovedInHotkeyAtlas(const Settings& a_settings, const std::uint32_t& a_key);
 }

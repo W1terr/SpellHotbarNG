@@ -31,11 +31,19 @@ namespace Input
 		std::chrono::steady_clock::time_point lastHotbarKey{};  // slot keys and the Oblivion style cast / potion keys
 		std::array<bool, kModifierCount> modifierDown{};
 		int                              switchedBar{ -1 };  // extra bar picked with a press-mode key, -1 = main bar
+		std::array<bool, kModifierCount> comboKeyDown{};     // key combo mode: the first key is held
+		std::array<bool, kModifierCount> comboUsed{};        // key combo mode: the key's press switched the bar, its release is ours too
 		bool                             mainBarOpen{ false };      // opened with the main bar key (press mode)
 		bool                             mainBarKeyDown{ false };
 		bool                             mainBarModifierDown{ false };
 		bool                             mainBarKeyUsed{ false };  // the main bar key's press opened / closed the bar: its release is ours too
 		std::uint32_t*                   captureTarget{ nullptr };
+
+		// slot picking
+		bool          picking{ false };    // the hold key is held
+		int           pickedSlot{ 0 };     // kept between holds
+		int           pickedBar{ -1 };     // page while picking: -1 main bar, else the extra bar
+		std::uint32_t pickUseDown{ 0 };    // use key whose press used the picked slot (its release ends a concentration spell)
 
 		// Keyboard modifiers can miss their release (alt-tab), so double check them with the OS
 		bool KeyboardKeyDown(std::uint32_t a_key)
@@ -124,6 +132,12 @@ namespace Input
 			return used;
 		}
 
+		// Key combo mode: the extra bar key only switches while its first key is held (LB + D-pad left)
+		bool UsesCombo(const Settings& a_settings, int a_bar)
+		{
+			return a_settings.modifierToggle[a_bar] && a_settings.modifierCombo[a_bar] && a_settings.modifierComboKeys[a_bar] != Keys::kNone;
+		}
+
 		// Extra bar whose key is held (hold mode); they win over a bar picked with a press
 		std::optional<int> HeldBar()
 		{
@@ -145,6 +159,116 @@ namespace Input
 				return switchedBar;
 			}
 			return std::nullopt;
+		}
+
+		// ---- slot picking ------------------------------------------------------------------------
+
+		Page PickedPage()
+		{
+			return pickedBar < 0 ? Page::kMain : static_cast<Page>(static_cast<int>(Page::kModifier1) + pickedBar);
+		}
+
+		// next filled slot in a_dir (1 / -1) from a_from, wrapping; a_from itself if it's the only one, any slot if
+		// the bar is empty
+		int NextFilled(int a_from, int a_dir, bool a_includeFrom)
+		{
+			const int count = std::max(1, Config::Get().slotCount);
+			for (int step = a_includeFrom ? 0 : 1; step <= count; ++step) {
+				const int slot = ((a_from + a_dir * step) % count + count) % count;
+				if (Bindings::GetForm(PickedPage(), slot)) {
+					return slot;
+				}
+			}
+			return ((a_from + (a_includeFrom ? 0 : a_dir)) % count + count) % count;
+		}
+
+		// main bar, then the extra bars that are on
+		void SwitchPickedBar(int a_dir)
+		{
+			const auto&      settings = Config::Get();
+			std::vector<int> bars{ -1 };
+			for (int i = 0; i < kModifierCount; ++i) {
+				if (settings.modifierEnabled[i]) {
+					bars.push_back(i);
+				}
+			}
+			const auto it = std::ranges::find(bars, pickedBar);
+			const int  index = it == bars.end() ? 0 : static_cast<int>(it - bars.begin());
+			const int  size = static_cast<int>(bars.size());
+			pickedBar = bars[((index + a_dir) % size + size) % size];
+			pickedSlot = NextFilled(pickedSlot, 1, true);
+		}
+
+		// Hold key + D-pad: true = the event is the picking's (swallowed)
+		bool OnPickKey(const RE::ButtonEvent* a_button, std::uint32_t a_key, Mode a_mode)
+		{
+			const auto& settings = Config::Get();
+			const bool  pressed = a_button->IsPressed();
+
+			// the use key let go (also after the hold key): ends a concentration spell started with it
+			if (pickUseDown != 0 && a_key == pickUseDown && !pressed) {
+				pickUseDown = 0;
+				Actions::OnKeyUp(a_key);
+				return true;
+			}
+			if (!settings.pickEnabled || settings.pickKey == Keys::kNone) {
+				picking = false;
+				return false;
+			}
+
+			if (a_key == settings.pickKey) {
+				if (a_button->IsDown()) {
+					if (a_mode != Mode::kGameplay) {
+						return false;
+					}
+					picking = true;
+					const auto page = CurrentPage();  // starts on the bar in use
+					pickedBar = page == Page::kMain ? -1 : static_cast<int>(page) - static_cast<int>(Page::kModifier1);
+					pickedSlot = NextFilled(std::clamp(pickedSlot, 0, std::max(0, settings.slotCount - 1)), 1, true);
+					lastHotbarKey = std::chrono::steady_clock::now();
+					return true;
+				}
+				const bool was = picking;
+				if (!pressed) {
+					picking = false;
+				}
+				return was;
+			}
+			if (!picking || a_mode != Mode::kGameplay) {
+				return false;
+			}
+
+			const auto step = [&](auto&& a_action) {
+				if (a_button->IsDown()) {
+					a_action();
+					lastHotbarKey = std::chrono::steady_clock::now();
+				}
+				return true;
+			};
+			if (a_key == settings.pickPrevKey) {
+				return step([] { pickedSlot = NextFilled(pickedSlot, -1, false); });
+			}
+			if (a_key == settings.pickNextKey) {
+				return step([] { pickedSlot = NextFilled(pickedSlot, 1, false); });
+			}
+			if (a_key == settings.pickPrevBarKey) {
+				return step([] { SwitchPickedBar(-1); });
+			}
+			if (a_key == settings.pickNextBarKey) {
+				return step([] { SwitchPickedBar(1); });
+			}
+			if (a_key == settings.pickUseKey) {
+				if (a_button->IsDown()) {
+					pickUseDown = a_key;
+					lastHotbarKey = lastSlotKey = std::chrono::steady_clock::now();
+					const auto page = PickedPage();
+					const auto form = Bindings::GetForm(page, pickedSlot);
+					logs::info("Key {} -> picked slot {} ({}): {}", Keys::Name(a_key), pickedSlot + 1, Config::PageName(page), form ? form->GetName() : "empty");
+					Actions::Use(page, pickedSlot, true, a_key);
+				}
+				return true;
+			}
+			return false;
 		}
 
 		SlotState& StateOf(int a_slot)
@@ -257,20 +381,48 @@ namespace Input
 		if (OnMainBarKey(button, key)) {
 			return true;
 		}
+		if (OnPickKey(button, key, CurrentMode())) {
+			return true;
+		}
 
 		const bool pressed = button->IsPressed();
 
-		// extra bar keys always reach the game too
+		// Extra bar keys always reach the game too, except a key combo: its second key only switches the bar (with a
+		// controller it's usually a slot key too, like the D-pad), the first key reaches the game.
+		bool comboSwitch = false;
 		for (int i = 0; i < kModifierCount; ++i) {
-			if (!settings.modifierEnabled[i] || settings.modifierKeys[i] != key) {
+			if (!settings.modifierEnabled[i]) {
 				continue;
 			}
-			if (!settings.modifierToggle[i]) {
+			const bool combo = UsesCombo(settings, i);
+			if (combo && settings.modifierComboKeys[i] == key) {
+				comboKeyDown[i] = pressed;
+			}
+			if (settings.modifierKeys[i] != key) {
+				continue;
+			}
+			if (combo) {
+				if (button->IsDown()) {
+					comboUsed[i] = comboKeyDown[i] && MainBarUsable(CurrentMode());
+					if (comboUsed[i]) {
+						switchedBar = SwitchedBar() == i ? -1 : i;
+						logs::info("Extra bar {} {} ({} + {})", i + 1, switchedBar == i ? "opened" : "closed", Keys::Name(settings.modifierComboKeys[i]),
+							Keys::Name(key));
+					}
+				}
+				comboSwitch = comboSwitch || comboUsed[i];
+				if (!pressed) {
+					comboUsed[i] = false;
+				}
+			} else if (!settings.modifierToggle[i]) {
 				modifierDown[i] = pressed;
 			} else if (button->IsDown() && MainBarUsable(CurrentMode())) {
 				// press mode: switches to this extra bar, or back to the main bar if it is the current one
 				switchedBar = SwitchedBar() == i ? -1 : i;
 			}
+		}
+		if (comboSwitch) {
+			return true;
 		}
 
 		const auto slot = FindSlot(key);
@@ -317,9 +469,11 @@ namespace Input
 		};
 		for (int i = 0; i < kModifierCount; ++i) {
 			missedRelease(modifierDown[i], settings.modifierKeys[i]);
+			missedRelease(comboKeyDown[i], settings.modifierComboKeys[i]);
 		}
 		missedRelease(mainBarKeyDown, settings.mainBarKey);
 		missedRelease(mainBarModifierDown, settings.mainBarModifier);
+		missedRelease(picking, settings.pickKey);
 	}
 
 	void Reset()
@@ -327,11 +481,16 @@ namespace Input
 		std::scoped_lock lock(Config::Lock());
 		slotStates.fill({});
 		modifierDown.fill(false);
+		comboKeyDown.fill(false);
+		comboUsed.fill(false);
 		switchedBar = -1;
 		mainBarOpen = false;
 		mainBarKeyDown = false;
 		mainBarModifierDown = false;
 		mainBarKeyUsed = false;
+		picking = false;
+		pickedBar = -1;
+		pickUseDown = 0;
 	}
 
 	bool MainBarOpen()
@@ -362,8 +521,16 @@ namespace Input
 
 	Page CurrentPage()
 	{
+		if (picking) {
+			return PickedPage();
+		}
 		const auto bar = HeldBar().or_else(SwitchedBar);
 		return bar ? static_cast<Page>(static_cast<int>(Page::kModifier1) + *bar) : Page::kMain;
+	}
+
+	std::optional<int> PickedSlot()
+	{
+		return picking ? std::optional{ pickedSlot } : std::nullopt;
 	}
 
 	bool PageSwitched()

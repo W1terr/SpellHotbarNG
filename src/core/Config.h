@@ -103,6 +103,7 @@ struct BarColors
 	RGBA chargeBar{ 90 / 255.0f, 160 / 255.0f, 1.0f, 1.0f };
 	RGBA channeling{ 160 / 255.0f, 200 / 255.0f, 1.0f, 1.0f };
 	RGBA noMagicka{ 1.0f, 110 / 255.0f, 110 / 255.0f, 1.0f };  // icon tint when the spell costs more than you have
+	RGBA picked{ 1.0f, 210 / 255.0f, 100 / 255.0f, 1.0f };     // slot picked with slot picking (held key + D-pad)
 };
 
 struct Settings
@@ -155,10 +156,22 @@ struct Settings
 	std::array<std::uint32_t, kModifierCount> modifierKeys{ 0x2A, 0x1D, 0x38 };
 	std::array<bool, kModifierCount>          modifierEnabled{ false, false, false };
 	std::array<bool, kModifierCount>          modifierToggle{ false, false, false };  // one press switches to the extra bar and back, instead of holding
+	// key combo mode (with modifierToggle): the press only switches while modifierComboKeys is held (LB + D-pad left)
+	std::array<bool, kModifierCount>          modifierCombo{ false, false, false };
+	std::array<std::uint32_t, kModifierCount> modifierComboKeys{ 0x2A, 0x2A, 0x2A };  // LShift
 	bool                                      mainBarKeyEnabled{ false };  // the main bar (slot keys + bar) is closed until its key opens it
 	MainBarKeyMode                            mainBarKeyMode{ MainBarKeyMode::kPress };
 	std::uint32_t                             mainBarKey{ 0x23 };          // H
 	std::uint32_t                             mainBarModifier{ 0x2A };     // key combo mode: held while pressing mainBarKey (LShift)
+	// slot picking (for controllers): while pickKey is held, previous / next move a cursor over the bar's slots, the
+	// bar keys switch between the main and extra bars, the use key uses the picked slot. Gamepad codes by default.
+	bool                                      pickEnabled{ false };
+	std::uint32_t                             pickKey{ 0x112 };         // LB
+	std::uint32_t                             pickPrevKey{ 0x10C };     // DPad Left
+	std::uint32_t                             pickNextKey{ 0x10D };     // DPad Right
+	std::uint32_t                             pickUseKey{ 0x114 };      // A
+	std::uint32_t                             pickPrevBarKey{ 0x10A };  // DPad Up
+	std::uint32_t                             pickNextBarKey{ 0x10B };  // DPad Down
 	bool                                      blockGameInput{ true };  // hotbar keys don't reach the game (vanilla hotkeys 1-8 etc.)
 	bool                                      onlyWhileSneaking{ false };  // outside of sneak the hotbar keys are the game's
 	bool                                      aimAtCrosshair{ true };      // aimed spells fly to the crosshair, not the combat target

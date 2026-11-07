@@ -1,6 +1,7 @@
 #include "casting/BeastCast.h"
 
 #include "casting/PlayerControl.h"
+#include "casting/SpellTiming.h"
 #include "core/Util.h"
 
 namespace BeastCast
@@ -242,6 +243,9 @@ namespace BeastCast
 		void Release()
 		{
 			SendAttacks(0.0f, job->held);
+			if (job->started) {
+				SpellTiming::StartCooldown(job->spell);  // the game's cast time, but the spell's own cooldown
+			}
 			SetPhase(Phase::kFinish);
 		}
 	}

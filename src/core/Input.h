@@ -17,8 +17,12 @@ namespace Input
 	void               CancelCapture();
 	const std::uint32_t* CaptureTarget();
 
-	// Page currently selected: by a held extra bar key, else by the last press of a press-mode extra bar key
+	// Page currently selected: by slot picking (while its key is held), a held extra bar key, else by the last press
+	// of a press-mode extra bar key
 	Page CurrentPage();
+
+	// Slot picking: the hold key is held (the bar shows the picked slot, D-pad moves it). nullopt otherwise.
+	std::optional<int> PickedSlot();
 
 	// The current page comes from a press-mode extra bar key (nothing has to be held for it)
 	bool PageSwitched();

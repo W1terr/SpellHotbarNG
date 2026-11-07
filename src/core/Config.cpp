@@ -42,6 +42,7 @@ namespace Config
 			{ "chargeBar", &BarColors::chargeBar },
 			{ "channeling", &BarColors::channeling },
 			{ "noMagicka", &BarColors::noMagicka },
+			{ "picked", &BarColors::picked },
 		};
 
 		template <class T>
@@ -184,10 +185,19 @@ namespace Config
 		j["modifierKeys"] = s.modifierKeys;
 		j["modifierEnabled"] = s.modifierEnabled;
 		j["modifierToggle"] = s.modifierToggle;
+		j["modifierCombo"] = s.modifierCombo;
+		j["modifierComboKeys"] = s.modifierComboKeys;
 		j["mainBarKeyEnabled"] = s.mainBarKeyEnabled;
 		j["mainBarKeyMode"] = static_cast<int>(s.mainBarKeyMode);
 		j["mainBarKey"] = s.mainBarKey;
 		j["mainBarModifier"] = s.mainBarModifier;
+		j["pickEnabled"] = s.pickEnabled;
+		j["pickKey"] = s.pickKey;
+		j["pickPrevKey"] = s.pickPrevKey;
+		j["pickNextKey"] = s.pickNextKey;
+		j["pickUseKey"] = s.pickUseKey;
+		j["pickPrevBarKey"] = s.pickPrevBarKey;
+		j["pickNextBarKey"] = s.pickNextBarKey;
 		j["blockGameInput"] = s.blockGameInput;
 		j["onlyWhileSneaking"] = s.onlyWhileSneaking;
 		j["aimAtCrosshair"] = s.aimAtCrosshair;
@@ -266,10 +276,19 @@ namespace Config
 		ReadArray(j, "modifierKeys", s.modifierKeys);
 		ReadArray(j, "modifierEnabled", s.modifierEnabled);
 		ReadArray(j, "modifierToggle", s.modifierToggle);
+		ReadArray(j, "modifierCombo", s.modifierCombo);
+		ReadArray(j, "modifierComboKeys", s.modifierComboKeys);
 		Read(j, "mainBarKeyEnabled", s.mainBarKeyEnabled);
 		Read(j, "mainBarKeyMode", s.mainBarKeyMode);
 		Read(j, "mainBarKey", s.mainBarKey);
 		Read(j, "mainBarModifier", s.mainBarModifier);
+		Read(j, "pickEnabled", s.pickEnabled);
+		Read(j, "pickKey", s.pickKey);
+		Read(j, "pickPrevKey", s.pickPrevKey);
+		Read(j, "pickNextKey", s.pickNextKey);
+		Read(j, "pickUseKey", s.pickUseKey);
+		Read(j, "pickPrevBarKey", s.pickPrevBarKey);
+		Read(j, "pickNextBarKey", s.pickNextBarKey);
 		Read(j, "blockGameInput", s.blockGameInput);
 		Read(j, "onlyWhileSneaking", s.onlyWhileSneaking);
 		Read(j, "aimAtCrosshair", s.aimAtCrosshair);

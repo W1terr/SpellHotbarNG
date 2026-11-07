@@ -1,6 +1,7 @@
 #include "core/Bindings.h"
 
 #include "casting/ShoutCooldowns.h"
+#include "casting/SpellTiming.h"
 #include "core/Util.h"
 
 namespace Bindings
@@ -111,6 +112,7 @@ namespace Bindings
 			logs::info("Saved {} slot bindings", count);
 			WriteReady(a_intfc);
 			ShoutCooldowns::Save(a_intfc);
+			SpellTiming::Save(a_intfc);
 		}
 
 		void OnLoad(SKSE::SerializationInterface* a_intfc)
@@ -126,6 +128,10 @@ namespace Bindings
 				}
 				if (type == ShoutCooldowns::kRecord) {
 					ShoutCooldowns::Load(a_intfc, version);
+					continue;
+				}
+				if (type == SpellTiming::kRecord) {
+					SpellTiming::LoadRecord(a_intfc, version);
 					continue;
 				}
 				// v3 (a 1.9.5 test build) also had a cast time per slot, which is skipped
@@ -170,6 +176,7 @@ namespace Bindings
 			std::scoped_lock lock(Config::Lock());
 			ClearAll();
 			ShoutCooldowns::Clear();
+			SpellTiming::Clear();
 		}
 	}
 
