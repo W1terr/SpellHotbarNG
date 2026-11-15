@@ -26,6 +26,10 @@ namespace Replacers
 	// The "Variant" value of a generated submod is the chosen clip of the running cast. Safe on any thread.
 	bool Matches(int a_variant);
 
+	// An animation patch's "leftHandSpells" (left hand only animations, e.g. The Witcher signs): a hotbar cast of this
+	// spell with the hand on Auto uses the left hand. Main thread, after the game data loaded.
+	bool CastsWithLeftHand(const RE::MagicItem* a_item);
+
 	// Length of the chosen release clip, if a replacer clip is chosen for that view
 	std::optional<float> ReleaseDuration(bool a_firstPerson);
 }

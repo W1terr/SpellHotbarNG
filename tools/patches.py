@@ -107,7 +107,24 @@ CFPAO = {
                    + [f"{CFPAO_ROOT}/MagDes{part}" for part in ("LL", "LR", "SL", "SR")],
 }
 
-PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING, SIGMA_MAGIC_ANIMATIONS, CFPAO]
+# Casting animations for The Witcher signs (Nexus 90803, version 1.0), a DAR mod for The Witcher Signs (W3S.esl),
+# third person, left hand only (mlh_* clips): 950000 Igni / Quen / Aard (IsEquippedLeft of the 4 spells), 950001 Axii,
+# 950002 Yrden (IsEquippedLeftType + IsEquippedLeft). The DAR conditions only match these spells in the left hand, so
+# "left_hand_spells" makes hotbar casts of them with the hand on Auto use the left hand (Right / Both stay as bound).
+W3S = "W3S.esl"
+WITCHER_SIGNS = {
+    "name": "Casting animations for The Witcher signs",
+    "folder": "Casting animations for The Witcher signs",
+    "description": "Use the animations of \"Casting animations for The Witcher signs\" for Spell Hotbar NG casts of The "
+                   "Witcher Signs (only for the signs, like that mod). Signs on the bar with the hand on Auto are cast "
+                   "with the left hand, as that mod's animations are left hand ones. Needs that mod installed; contains no "
+                   "animations itself. At game start Spell Hotbar NG copies its animations for the hotbar (in MO2 they end "
+                   "up in the overwrite folder).",
+    "dar_folders": [950000, 950001, 950002],
+    "left_hand_spells": [f"{W3S}|0x{local:06X}" for local in (0x801, 0x807, 0x80A, 0x83E, 0x815, 0x81C)],
+}
+
+PATCHES = [SH2_ANIM_REPLACER, SMOOTH_MAGIC_CASTING, GOETIA_MAGIC_CASTING, SIGMA_MAGIC_ANIMATIONS, CFPAO, WITCHER_SIGNS]
 
 # Compatibility patches: a file in Data\SKSE\Plugins\SpellHotbarNG\compat read by the DLL (src/casting/SpellCharges.h).
 # Ordinator - Perks of Skyrim (Nexus 1137), Alteration perk "Vancian Magic": ORD_NewVancianMagicCast_Script (on effect
@@ -162,7 +179,10 @@ def build_patch(patch: dict, out_dir: Path) -> int:
     timings = out_dir / "SKSE/Plugins/SpellHotbarNG/animations" / f"{patch['folder']}.json"
     timings.parent.mkdir(parents=True, exist_ok=True)
     if "dar_folders" in patch:
-        timings.write_text(json.dumps({"name": patch["name"], "darFolders": patch["dar_folders"]}, indent=4), encoding="utf-8")
+        content = {"name": patch["name"], "darFolders": patch["dar_folders"]}
+        if "left_hand_spells" in patch:
+            content["leftHandSpells"] = patch["left_hand_spells"]
+        timings.write_text(json.dumps(content, indent=4), encoding="utf-8")
         return 1
     if "oar_folders" in patch:
         timings.write_text(json.dumps({"name": patch["name"], "oarFolders": patch["oar_folders"],

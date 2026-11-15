@@ -3,6 +3,7 @@
 #include "casting/BeastCast.h"
 #include "casting/CastAnim.h"
 #include "casting/PlayerControl.h"
+#include "casting/Replacers.h"
 #include "casting/ShoutCooldowns.h"
 #include "casting/SpellCharges.h"
 #include "casting/SpellTiming.h"
@@ -44,6 +45,7 @@ namespace Actions
 		};
 
 		std::optional<ActiveCast> cast;
+		CastEvents                events;
 		float                     gcdRemaining{ 0.0f };
 		float                     gcdTotal{ 0.0f };
 		float                     potionRemaining{ 0.0f };
@@ -77,10 +79,7 @@ namespace Actions
 		float                 dualStateClear{ -1.0f };  // seconds until the actor's dual casting state is cleared (< 0: nothing to clear)
 		float                 airTime{ 0.0f };    // how long the player has been in the air
 
-		RE::PlayerCharacter* Player()
-		{
-			return RE::PlayerCharacter::GetSingleton();
-		}
+		using Util::Player;
 
 		constexpr auto kDrawingOrSheathing = "drawing / sheathing";
 		constexpr auto kAttacking = "attacking";
@@ -416,7 +415,24 @@ namespace Actions
 				// not right away: spell cast events and effects of the cast may still be on their way
 				dualStateClear = kDualStateLinger;
 			}
+			++events.ended;
+			events.lastFired = cast->fired;
 			cast.reset();
+		}
+
+		// the hand(s) a cast fires from and its animation / hand glow use
+		CastAnim::Side SideOf(const ActiveCast& a_cast)
+		{
+			if (a_cast.dual || a_cast.bothHands || a_cast.item->IsTwoHanded()) {
+				return CastAnim::Side::kBoth;
+			}
+			return a_cast.source == Source::kLeftHand ? CastAnim::Side::kLeft : CastAnim::Side::kRight;
+		}
+
+		// 0..1 while charging, 1 while channeling
+		float Progress(const ActiveCast& a_cast)
+		{
+			return a_cast.channeling || a_cast.chargeTotal <= 0.0f ? 1.0f : std::clamp(a_cast.charge / a_cast.chargeTotal, 0.0f, 1.0f);
 		}
 
 		void StopChannel()
@@ -554,6 +570,11 @@ namespace Actions
 				return;
 			}
 
+			// animation patches with left hand only animations for some spells (The Witcher signs)
+			if (a_hand == Hand::kAuto && !a_scroll && Replacers::CastsWithLeftHand(a_item)) {
+				a_hand = Hand::kLeft;
+			}
+
 			ActiveCast next{};
 			next.item = a_item;
 			next.scroll = a_scroll;
@@ -570,8 +591,12 @@ namespace Actions
 			if (concentration && !a_keyHeld) {
 				return;  // concentration spells only channel while the key is held
 			}
+			const bool twoHands = next.dual || next.bothHands;
+			const auto side = SideOf(next);  // which hand(s) the animation and hand glow use
 			if (!a_scroll && (concentration ? Magicka() <= 0.0f : Magicka() < next.cost)) {
 				NotEnoughMagicka();
+				events.refusedLeft += side != CastAnim::Side::kRight ? 1u : 0u;
+				events.refusedRight += side != CastAnim::Side::kLeft ? 1u : 0u;
 				return;
 			}
 
@@ -581,11 +606,6 @@ namespace Actions
 			// player gave them their own (Spell Timing page)
 			next.animated = CastAnim::Available();
 			next.chargeTotal = concentration ? 0.0f : SpellTiming::CastTime(a_item).value_or(std::max(0.0f, a_item->GetChargeTime()));
-			// which hand(s) the animation and hand glow use
-			const bool twoHands = next.dual || next.bothHands;
-			const auto side = twoHands || a_item->IsTwoHanded()     ? CastAnim::Side::kBoth :
-			                  next.source == Source::kLeftHand ? CastAnim::Side::kLeft :
-			                                                     CastAnim::Side::kRight;
 			if (next.animated) {
 				next.chargeTotal = concentration ? kAnimConcWindup : std::max(next.chargeTotal, kAnimMinCharge);
 				switch (CastAnim::Start(CastAnim::Choose(a_item, twoHands), side, a_item)) {
@@ -1082,12 +1102,21 @@ namespace Actions
 			}
 			return std::nullopt;
 		}
-		CastInfo info;
-		info.page = cast->page;
-		info.slot = cast->slot;
-		info.channeling = cast->channeling;
-		info.progress = cast->channeling || cast->chargeTotal <= 0.0f ? 1.0f : std::clamp(cast->charge / cast->chargeTotal, 0.0f, 1.0f);
-		return info;
+		return CastInfo{ cast->page, cast->slot, Progress(*cast), cast->channeling };
+	}
+
+	std::optional<HandCast> CurrentHandCast()
+	{
+		if (!cast) {
+			return std::nullopt;
+		}
+		const auto side = SideOf(*cast);
+		return HandCast{ cast->item, side != CastAnim::Side::kRight, side != CastAnim::Side::kLeft, Progress(*cast), cast->channeling };
+	}
+
+	const CastEvents& Events()
+	{
+		return events;
 	}
 
 	namespace

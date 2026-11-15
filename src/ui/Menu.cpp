@@ -563,6 +563,17 @@ namespace UI
 				Unindent();
 			}
 
+			SeparatorText(T("Bar in menus"));
+			Changed(Checkbox(Id("Open the bar in menus with a key", "menuBarKeyEnabled").c_str(), &s.menuBarKeyEnabled));
+			Help("On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\n"
+				 "do what the menu (or another mod) does with them. Press this key there to show the bar,\n"
+				 "then press a slot key to put the selected item on it. Press the key again to close the bar.\n"
+				 "It is closed again every time you open the menu.");
+			if (s.menuBarKeyEnabled) {
+				SameLine();
+				KeyButton("menuBarKey", &s.menuBarKey);
+			}
+
 			SeparatorText(T("Extra bars"));
 			TextWrapped("%s", T("Hold a key to switch to another set of spells, like Shift + 1 instead of 1. "
 								"Each extra bar you turn on gets its own tab."));

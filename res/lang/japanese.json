@@ -254,5 +254,8 @@
   "Previous bar": "前のバー",
   "Next bar": "次のバー",
   "Picked slot": "選択中のスロット",
-  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "スロット選択で選んだスロットの枠 (割り当て > キー設定)。"
+  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "スロット選択で選んだスロットの枠 (割り当て > キー設定)。",
+  "Bar in menus": "メニュー内のバー",
+  "Open the bar in menus with a key": "メニュー内ではキーでバーを開く",
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "オン: 所持品・魔法・お気に入りメニューではバーは最初は閉じていて、スロットキーは\nメニュー(または他のMOD)の操作になります。そこでこのキーを押すとバーが表示され、\nスロットキーで選択中のアイテムを登録できます。もう一度押すとバーを閉じます。\nメニューを開くたびに閉じた状態に戻ります。"
 }

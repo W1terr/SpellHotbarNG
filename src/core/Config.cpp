@@ -78,9 +78,17 @@ namespace Config
 			}
 		}
 
+		// Next to the mod's other files, so Mod Organizer 2 keeps it in the overwrite folder like other mods' settings
 		std::filesystem::path SettingsPath()
 		{
-			return UserDir() / "settings.json";
+			return DataDir() / "settings.json";
+		}
+
+		// Before 2.1: Documents\My Games\Skyrim Special Edition\SKSE\SpellHotbarNG\settings.json
+		std::optional<std::filesystem::path> OldSettingsPath()
+		{
+			const auto logDir = logs::log_directory();
+			return logDir ? std::optional{ *logDir / "SpellHotbarNG" / "settings.json" } : std::nullopt;
 		}
 	}
 
@@ -120,15 +128,6 @@ namespace Config
 	{
 		static std::recursive_mutex lock;
 		return lock;
-	}
-
-	std::filesystem::path UserDir()
-	{
-		static const auto dir = [] {
-			auto logDir = logs::log_directory();
-			return logDir ? *logDir / "SpellHotbarNG" : std::filesystem::path("Data/SKSE/Plugins/SpellHotbarNG/user");
-		}();
-		return dir;
 	}
 
 	std::filesystem::path DataDir()
@@ -205,6 +204,8 @@ namespace Config
 		j["castDuringAttacks"] = s.castDuringAttacks;
 		j["unfavoriteRemoves"] = s.unfavoriteRemoves;
 		j["bindInFavorites"] = s.bindInFavorites;
+		j["menuBarKeyEnabled"] = s.menuBarKeyEnabled;
+		j["menuBarKey"] = s.menuBarKey;
 
 		j["keyMode"] = static_cast<int>(s.keyMode);
 		j["castKey"] = s.castKey;
@@ -296,6 +297,8 @@ namespace Config
 		Read(j, "castDuringAttacks", s.castDuringAttacks);
 		Read(j, "unfavoriteRemoves", s.unfavoriteRemoves);
 		Read(j, "bindInFavorites", s.bindInFavorites);
+		Read(j, "menuBarKeyEnabled", s.menuBarKeyEnabled);
+		Read(j, "menuBarKey", s.menuBarKey);
 
 		Read(j, "keyMode", s.keyMode);
 		Read(j, "castKey", s.castKey);
@@ -345,7 +348,14 @@ namespace Config
 	void Load()
 	{
 		std::scoped_lock lock(Lock());
-		if (auto j = ReadJsonFile(SettingsPath())) {
+		auto             path = SettingsPath();
+		std::error_code  ec;
+		bool             moved = false;
+		if (const auto old = OldSettingsPath(); !std::filesystem::exists(path, ec) && old && std::filesystem::exists(*old, ec)) {
+			path = *old;  // read once from the old place, saved to the new one right away
+			moved = true;
+		}
+		if (auto j = ReadJsonFile(path)) {
 			FromJson(j->value("settings", json::object()), settings);
 			Lang::Set(j->value("language", "english"));  // outside "settings": profiles and resets keep the language
 			const int version = j->value("version", 1);
@@ -355,13 +365,18 @@ namespace Config
 			if (version < kFileVersion) {
 				MarkDirty();  // rewrite without the removed options
 			}
-			logs::info("Loaded settings from {}", ToUtf8(SettingsPath()));
+			logs::info("Loaded settings from {}", ToUtf8(path));
 		} else {
 			logs::info("No settings file yet, using defaults");
 			Lang::Set("english");
 		}
 		Hotkeys::Read(settings);
-		Hotkeys::Write(settings);  // there before hotkey tools scan (Hotkey Atlas: after kDataLoaded)
+		if (moved) {
+			Save();  // also writes Hotkeys.ini
+			logs::info("Settings moved to {}", ToUtf8(SettingsPath()));
+		} else {
+			Hotkeys::Write(settings);  // there before hotkey tools scan (Hotkey Atlas: after kDataLoaded)
+		}
 	}
 
 	void Save()

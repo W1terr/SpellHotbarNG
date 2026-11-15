@@ -65,7 +65,7 @@ namespace BeastCast
 		constexpr float kFinishTimeout = 3.0f;
 		constexpr float kRestoreDelay = 0.3f;
 
-		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
+		using Util::Player;
 
 		RE::BGSEquipSlot* EquipSlot(RE::DEFAULT_OBJECT a_id)
 		{

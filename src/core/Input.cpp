@@ -37,6 +37,8 @@ namespace Input
 		bool                             mainBarKeyDown{ false };
 		bool                             mainBarModifierDown{ false };
 		bool                             mainBarKeyUsed{ false };  // the main bar key's press opened / closed the bar: its release is ours too
+		std::atomic<bool>                menuBarOpen{ false };     // opened with the menu bar key in a bind menu, closed when they all close
+		bool                             menuBarKeyUsed{ false };  // the menu bar key's press opened / closed the bar: its release is ours too
 		std::uint32_t*                   captureTarget{ nullptr };
 
 		// slot picking
@@ -83,8 +85,9 @@ namespace Input
 
 		Mode CurrentMode()
 		{
+			// a bind menu with the bar closed (menu bar key): the keys are the menu's
 			if (InBindMenu()) {
-				return Mode::kBind;
+				return MenuBarOpen() ? Mode::kBind : Mode::kNone;
 			}
 			return GameplayActive() && SneakAllows() && !Util::HotbarOff() ? Mode::kGameplay : Mode::kNone;
 		}
@@ -128,6 +131,28 @@ namespace Input
 			const bool used = mainBarKeyUsed;
 			if (!pressed) {
 				mainBarKeyUsed = false;
+			}
+			return used;
+		}
+
+		// The menu bar key opens / closes the bar in the inventory / magic / favorites menu. true = swallow the event.
+		bool OnMenuBarKey(const RE::ButtonEvent* a_button, std::uint32_t a_key)
+		{
+			const auto& settings = Config::Get();
+			if (!settings.menuBarKeyEnabled || settings.menuBarKey == Keys::kNone || a_key != settings.menuBarKey) {
+				return false;
+			}
+			if (a_button->IsDown()) {
+				menuBarKeyUsed = InBindMenu();
+				if (menuBarKeyUsed) {
+					menuBarOpen = !menuBarOpen;
+					logs::info("Bar in menus {} ({})", menuBarOpen ? "opened" : "closed", Keys::Name(a_key));
+				}
+				return menuBarKeyUsed;
+			}
+			const bool used = menuBarKeyUsed;
+			if (!a_button->IsPressed()) {
+				menuBarKeyUsed = false;
 			}
 			return used;
 		}
@@ -378,7 +403,7 @@ namespace Input
 			return true;
 		}
 
-		if (OnMainBarKey(button, key)) {
+		if (OnMainBarKey(button, key) || OnMenuBarKey(button, key)) {
 			return true;
 		}
 		if (OnPickKey(button, key, CurrentMode())) {
@@ -488,6 +513,8 @@ namespace Input
 		mainBarKeyDown = false;
 		mainBarModifierDown = false;
 		mainBarKeyUsed = false;
+		menuBarOpen = false;
+		menuBarKeyUsed = false;
 		picking = false;
 		pickedBar = -1;
 		pickUseDown = 0;
@@ -500,6 +527,12 @@ namespace Input
 			return true;
 		}
 		return settings.mainBarKeyMode == MainBarKeyMode::kHold ? mainBarKeyDown : mainBarOpen;
+	}
+
+	bool MenuBarOpen()
+	{
+		const auto& settings = Config::Get();
+		return !settings.menuBarKeyEnabled || settings.menuBarKey == Keys::kNone || menuBarOpen;
 	}
 
 	void BeginCapture(std::uint32_t* a_target)
@@ -563,13 +596,18 @@ namespace Input
 	bool InBindMenu()
 	{
 		const auto ui = RE::UI::GetSingleton();
-		// beast forms that can't cast from the bar (werewolf) don't bind either; a book read from the inventory covers it
-		if (!ui || TextEntryActive() || UI::IsBlockingWindowOpen() || Util::HotbarOffInBeastForm() || ui->IsMenuOpen(RE::BookMenu::MENU_NAME)) {
+		if (!ui) {
 			return false;
 		}
 		// Favorites menu only with "Bind in the Favorites menu": otherwise its number keys set the game's own hotkeys
-		return ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || GridInventory::MenuOpen() ||
-		       (Config::Get().bindInFavorites && ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME));
+		const bool open = ui->IsMenuOpen(RE::MagicMenu::MENU_NAME) || ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME) || GridInventory::MenuOpen() ||
+		                  (Config::Get().bindInFavorites && ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME));
+		if (!open) {
+			menuBarOpen = false;  // opened with the menu bar key: closed again for the next time
+			return false;
+		}
+		// beast forms that can't cast from the bar (werewolf) don't bind either; a book read from the inventory covers it
+		return !TextEntryActive() && !UI::IsBlockingWindowOpen() && !Util::HotbarOffInBeastForm() && !ui->IsMenuOpen(RE::BookMenu::MENU_NAME);
 	}
 
 	RE::TESForm* MenuSelection()

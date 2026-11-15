@@ -287,10 +287,17 @@ namespace UI
 
 			Context ctx;
 			ctx.preview = IsBlockingWindowOpen();
+			if (Input::InBindMenu() && !Input::MenuBarOpen()) {
+				return std::nullopt;  // closed until the menu bar key opens it
+			}
 			ctx.bindMenu = settings.showInMenus && Input::InBindMenu();
 
 			if (!ctx.preview && !ctx.bindMenu) {
 				if (!ui->IsShowingMenus() || ui->GameIsPaused()) {
+					return std::nullopt;
+				}
+				// another mod hid the game's HUD (e.g. a menu of its own over the screen): the bar goes with it
+				if (const auto hud = ui->GetMenu(RE::HUDMenu::MENU_NAME); hud && hud->uiMovie && !hud->uiMovie->GetVisible()) {
 					return std::nullopt;
 				}
 				// (the Tween menu on Tab and the skills menu hide the game's HUD; unpaused with Skyrim Souls)

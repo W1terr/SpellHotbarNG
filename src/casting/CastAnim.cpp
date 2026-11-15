@@ -7,6 +7,7 @@
 #include "casting/VanillaCast.h"
 #include "OAR2-ConditionTypes.h"
 #include "OpenAnimationReplacerAPI-Conditions.h"
+#include "core/Util.h"
 
 namespace CastAnim
 {
@@ -165,7 +166,7 @@ namespace CastAnim
 			bool EvaluateImpl(RE::TESObjectREFR* a_refr, RE::hkbClipGenerator*) const override { return EvaluateCast(a_refr); }
 		};
 
-		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
+		using Util::Player;
 
 		// Our hand art. ApplyArtObject doesn't always create the effect right away: called from a thread other than the
 		// one that owns the effect list, it queues it as a task for a later frame (a glow that showed up late was never

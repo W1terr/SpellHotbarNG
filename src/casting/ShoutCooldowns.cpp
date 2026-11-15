@@ -1,6 +1,7 @@
 #include "casting/ShoutCooldowns.h"
 
 #include "core/Config.h"
+#include "core/Util.h"
 
 namespace ShoutCooldowns
 {
@@ -19,7 +20,7 @@ namespace ShoutCooldowns
 		float                                    lastTimer{ 0.0f };
 		float                                    equippedTotal{ 0.0f };  // length of the equipped shout's running cooldown
 
-		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
+		using Util::Player;
 
 		// shouts and voice powers use the game's shout timer
 		bool UsesShoutTimer(const RE::TESForm* a_form)

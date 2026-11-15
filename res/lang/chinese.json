@@ -254,5 +254,8 @@
   "Previous bar": "上一個快捷列",
   "Next bar": "下一個快捷列",
   "Picked slot": "選中的欄位",
-  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "用欄位選擇選中的欄位的邊框（綁定 > 按鍵）。"
+  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "用欄位選擇選中的欄位的邊框（綁定 > 按鍵）。",
+  "Bar in menus": "選單中的快捷列",
+  "Open the bar in menus with a key": "在選單中用按鍵開啟快捷列",
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "開啟:在物品、魔法和最愛選單中,快捷列一開始是關閉的,欄位按鍵會照選單\n(或其他模組)的方式運作。在那裡按下這個鍵即可顯示快捷列,\n再按欄位按鍵就能放入選取的物品。再按一次此鍵關閉快捷列。\n每次開啟選單時都會重新關閉。"
 }

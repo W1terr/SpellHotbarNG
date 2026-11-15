@@ -2,6 +2,7 @@
 
 #include "core/Keys.h"
 #include "core/Lang.h"
+#include "core/Util.h"
 
 namespace Hotkeys
 {
@@ -18,21 +19,8 @@ namespace Hotkeys
 			return Config::DataDir() / "Hotkeys.ini";
 		}
 
-		std::string Lower(std::string_view a_str)
-		{
-			std::string out(a_str);
-			std::ranges::transform(out, out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-			return out;
-		}
-
-		std::string_view Trim(std::string_view a_str)
-		{
-			const auto first = a_str.find_first_not_of(" \t\r\n");
-			if (first == std::string_view::npos) {
-				return {};
-			}
-			return a_str.substr(first, a_str.find_last_not_of(" \t\r\n") - first + 1);
-		}
+		using Util::ToLower;
+		using Util::Trim;
 
 		std::optional<std::uint32_t> ParseUInt(std::string_view a_str)
 		{
@@ -46,7 +34,7 @@ namespace Hotkeys
 			const char* section;
 			std::string name;  // Hotkey Atlas shows it as the action: "Slot_1_Key" -> "Slot 1 Key"
 
-			std::string Id() const { return Lower(std::format("{}|{}", section, name)); }
+			std::string Id() const { return ToLower(std::format("{}|{}", section, name)); }
 		};
 
 		// Ini section and name of a key member of `a_settings`
@@ -69,6 +57,9 @@ namespace Hotkeys
 			}
 			if (a_key == &a_settings.mainBarKey) {
 				return Setting{ kMainBarSection, "Open_Key" };
+			}
+			if (a_key == &a_settings.menuBarKey) {
+				return Setting{ kMainBarSection, "Open_In_Menus_Key" };
 			}
 			if (a_key == &a_settings.castKey) {
 				return Setting{ kOblivionSection, "Cast_Key" };
@@ -117,6 +108,9 @@ namespace Hotkeys
 			}
 			if (!a_inUse || a_settings.mainBarKeyEnabled) {
 				a_func(a_settings.mainBarKey);
+			}
+			if (!a_inUse || a_settings.menuBarKeyEnabled) {
+				a_func(a_settings.menuBarKey);
 			}
 			if (!a_inUse || a_settings.keyMode == KeyMode::kOblivion) {
 				a_func(a_settings.castKey);
@@ -167,7 +161,7 @@ namespace Hotkeys
 					continue;
 				}
 				if (text.front() == '[') {
-					section = Lower(text.substr(1, text.find(']') - 1));
+					section = ToLower(text.substr(1, text.find(']') - 1));
 					continue;
 				}
 				const auto eq = text.rfind('=');
@@ -175,7 +169,7 @@ namespace Hotkeys
 					continue;
 				}
 				// older Hotkey Atlas versions wrote "../../MO2/mods/<mod>/SKSE/..." as the file
-				const auto id = Lower(Trim(text.substr(0, eq)));
+				const auto id = ToLower(Trim(text.substr(0, eq)));
 				const auto fileEnd = id.find('|');
 				if (fileEnd == std::string::npos || !std::string_view(id).substr(0, fileEnd).ends_with(kAtlasOrigin)) {
 					continue;
@@ -334,7 +328,7 @@ namespace Hotkeys
 				continue;
 			}
 			const auto name = Trim(text.substr(0, eq));
-			const auto it = keys.find(Lower(std::format("{}|{}", section, name)));
+			const auto it = keys.find(ToLower(std::format("{}|{}", section, name)));
 			if (it == keys.end()) {
 				continue;
 			}

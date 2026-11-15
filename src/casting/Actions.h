@@ -27,6 +27,29 @@ namespace Actions
 	};
 	std::optional<CastInfo> CurrentCast();
 
+	// A spell / scroll cast from the bar with its own timing (not shouts, powers or beast form casts: those use the
+	// game's own casting). Main thread.
+	struct HandCast
+	{
+		RE::MagicItem* item{ nullptr };
+		bool           left{ false };   // the hands it's cast from
+		bool           right{ false };
+		float          progress{ 0.0f };  // 0..1 while charging
+		bool           channeling{ false };
+	};
+	std::optional<HandCast> CurrentHandCast();
+
+	// Counters for one-time effects (Reticle Arcs): casts that ended (lastFired: the last one went off, or it fizzled
+	// / was let go) and presses refused for lack of magicka, per hand. Main thread.
+	struct CastEvents
+	{
+		std::uint32_t ended{ 0 };
+		bool          lastFired{ false };
+		std::uint32_t refusedLeft{ 0 };
+		std::uint32_t refusedRight{ 0 };
+	};
+	const CastEvents& Events();
+
 	// Remaining / total seconds of whatever blocks this form right now (gcd, potion cooldown, shout recovery)
 	std::pair<float, float> Cooldown(RE::TESForm* a_form);
 

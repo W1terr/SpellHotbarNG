@@ -2,15 +2,24 @@
 
 namespace Util
 {
+	std::string ToLower(std::string_view a_text)
+	{
+		std::string out(a_text);
+		std::ranges::transform(out, out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		return out;
+	}
+
+	std::string_view Trim(std::string_view a_text)
+	{
+		const auto first = a_text.find_first_not_of(" \t\r\n");
+		if (first == std::string_view::npos) {
+			return {};
+		}
+		return a_text.substr(first, a_text.find_last_not_of(" \t\r\n") - first + 1);
+	}
+
 	namespace
 	{
-		std::string ToLower(std::string_view a_text)
-		{
-			std::string out(a_text);
-			std::ranges::transform(out, out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-			return out;
-		}
-
 		// Loaded plugins by lower case file name, built on first use (the load order doesn't change while playing).
 		// Icon lists resolve thousands of keys at startup, so no linear search over the plugin list per key.
 		const std::unordered_map<std::string, const RE::TESFile*>& LoadedPlugins()

@@ -254,5 +254,8 @@
   "Previous bar": "Poprzedni pasek",
   "Next bar": "Następny pasek",
   "Picked slot": "Wybrany slot",
-  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Ramka slotu wybranego przez wybór slotu (Przypisania > Klawisze)."
+  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Ramka slotu wybranego przez wybór slotu (Przypisania > Klawisze).",
+  "Bar in menus": "Pasek w menu",
+  "Open the bar in menus with a key": "Otwieraj pasek w menu klawiszem",
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "Wł.: w menu ekwipunku, magii i ulubionych pasek jest najpierw zamknięty, a klawisze slotów\nrobią to, co robi z nimi menu (lub inny mod). Naciśnij tam ten klawisz, aby pokazać pasek,\na potem klawisz slotu, aby przypisać wybrany przedmiot. Naciśnij ponownie, aby zamknąć pasek.\nPrzy każdym otwarciu menu jest znów zamknięty."
 }

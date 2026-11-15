@@ -2,6 +2,14 @@
 
 namespace Util
 {
+	inline RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
+
+	// ASCII lower case (file names, ini sections, editor ids)
+	std::string ToLower(std::string_view a_text);
+
+	// without leading / trailing spaces, tabs and line breaks
+	std::string_view Trim(std::string_view a_text);
+
 	// "Plugin.esp|0x00ABCD" <-> form id (0 / empty if the plugin is not loaded). Light plugins are supported.
 	std::string ToPluginKey(RE::FormID a_form);
 	RE::FormID  FromPluginKey(std::string_view a_key);

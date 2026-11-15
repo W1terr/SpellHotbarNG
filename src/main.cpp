@@ -1,15 +1,16 @@
 #include "casting/Actions.h"
-#include "core/Bindings.h"
 #include "casting/CastAnim.h"
 #include "casting/FirstPersonArms.h"
 #include "casting/Replacers.h"
+#include "casting/ReticleArcs.h"
 #include "casting/SpellCharges.h"
 #include "casting/SpellTiming.h"
 #include "casting/TrueDirectionalMovement.h"
+#include "core/Bindings.h"
 #include "core/Config.h"
 #include "core/GridInventory.h"
-#include "ui/Icons.h"
 #include "core/Input.h"
+#include "ui/Icons.h"
 #include "ui/ItemIcons.h"
 #include "ui/UI.h"
 
@@ -40,6 +41,7 @@ namespace
 		case SKSE::MessagingInterface::kPostLoad:
 			CastAnim::RegisterCondition();
 			TrueDirectionalMovement::Init();
+			ReticleArcs::Init();
 			break;
 		case SKSE::MessagingInterface::kPostPostLoad:
 			FirstPersonArms::Install();       // after camera mods hooked the same call at their load

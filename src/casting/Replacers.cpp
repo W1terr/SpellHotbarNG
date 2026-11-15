@@ -1,6 +1,7 @@
 #include "casting/Replacers.h"
 
 #include "core/Config.h"
+#include "core/Util.h"
 
 #include <random>
 
@@ -141,7 +142,7 @@ namespace Replacers
 				kInCombat,
 				kSneaking,
 				kWeaponDrawn,
-				kEquippedRight,  // a specific form in the hand (OAR IsEquipped)
+				kEquippedRight,  // a specific form in the hand (DAR IsEquippedRight / Left, OAR IsEquipped)
 				kEquippedLeft
 			};
 			Kind        kind;
@@ -185,26 +186,13 @@ namespace Replacers
 		// chosen Variant per view * kRoleCount + role for the running cast (0 = vanilla clip)
 		std::array<std::atomic<int>, kViewCount * kRoleCount> chosen{};
 
-		std::string Lower(std::string_view a_text)
-		{
-			std::string out(a_text);
-			std::ranges::transform(out, out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-			return out;
-		}
-
-		std::string_view Trim(std::string_view a_text)
-		{
-			const auto first = a_text.find_first_not_of(" \t\r\n"sv);
-			if (first == std::string_view::npos) {
-				return {};
-			}
-			return a_text.substr(first, a_text.find_last_not_of(" \t\r\n"sv) - first + 1);
-		}
+		using Util::ToLower;
+		using Util::Trim;
 
 		// strips a trailing "AND" / "OR" keyword, returns whether it was OR
 		bool StripOperator(std::string_view& a_line)
 		{
-			const auto upper = Lower(a_line);
+			const auto upper = ToLower(a_line);
 			for (const auto [keyword, isOr] : { std::pair{ "or"sv, true }, std::pair{ "and"sv, false } }) {
 				if (upper.ends_with(keyword) && upper.size() > keyword.size()) {
 					const char before = upper[upper.size() - keyword.size() - 1];
@@ -220,12 +208,12 @@ namespace Replacers
 		std::optional<Condition> ParseCondition(std::string_view a_line, std::string& a_error)
 		{
 			Condition condition{};
-			if (const auto prefix = Lower(a_line.substr(0, 4)); prefix == "not " || prefix == "not(") {
+			if (const auto prefix = ToLower(a_line.substr(0, 4)); prefix == "not " || prefix == "not(") {
 				condition.negated = true;
 				a_line = Trim(a_line.substr(3));
 			}
 			const auto open = a_line.find('(');
-			const auto name = Lower(Trim(a_line.substr(0, open)));
+			const auto name = ToLower(Trim(a_line.substr(0, open)));
 			std::string_view args;
 			if (open != std::string_view::npos) {
 				const auto close = a_line.rfind(')');
@@ -240,21 +228,27 @@ namespace Replacers
 				return std::nullopt;
 			};
 
-			if (name == "isactorbase") {
-				// "Skyrim.esm" | 0x00000007
+			// a form argument: "Skyrim.esm" | 0x00000007
+			auto form = [&]() {
 				const auto q1 = args.find('"');
 				const auto q2 = q1 == std::string_view::npos ? q1 : args.find('"', q1 + 1);
 				const auto bar = args.find('|');
 				if (q2 == std::string_view::npos || bar == std::string_view::npos) {
-					return unreadable();
+					return false;
 				}
-				condition.kind = Condition::Kind::kActorBase;
 				condition.plugin = std::string(args.substr(q1 + 1, q2 - q1 - 1));
 				auto id = Trim(args.substr(bar + 1));
 				if (id.starts_with("0x"sv) || id.starts_with("0X"sv)) {
 					id.remove_prefix(2);
 				}
-				if (std::from_chars(id.data(), id.data() + id.size(), condition.localID, 16).ec != std::errc{}) {
+				return std::from_chars(id.data(), id.data() + id.size(), condition.localID, 16).ec == std::errc{};
+			};
+
+			if (name == "isactorbase" || name == "isequippedright" || name == "isequippedleft") {
+				condition.kind = name == "isactorbase"     ? Condition::Kind::kActorBase :
+				                 name == "isequippedright" ? Condition::Kind::kEquippedRight :
+				                                             Condition::Kind::kEquippedLeft;
+				if (!form()) {
 					return unreadable();
 				}
 			} else if (name == "isequippedrighttype" || name == "isequippedlefttype") {
@@ -317,7 +311,7 @@ namespace Replacers
 		std::optional<Condition> ParseOarCondition(const json& a_condition, std::string& a_error)
 		{
 			Condition  condition{};
-			const auto name = Lower(a_condition.value("condition", ""));
+			const auto name = ToLower(a_condition.value("condition", ""));
 			condition.negated = a_condition.value("negated", false);
 			if (name == "isequippedtype") {
 				condition.kind = a_condition.value("Left hand", false) ? Condition::Kind::kLeftType : Condition::Kind::kRightType;
@@ -355,7 +349,7 @@ namespace Replacers
 					continue;
 				}
 				std::vector<Condition> group;
-				if (Lower(item.value("condition", "")) == "or" && !item.value("negated", false)) {
+				if (ToLower(item.value("condition", "")) == "or" && !item.value("negated", false)) {
 					for (const auto& sub : item.value("Conditions", json::array())) {
 						if (sub.value("disabled", false)) {
 							continue;
@@ -604,13 +598,27 @@ namespace Replacers
 		// "darFolders": [ 996, ... ] (DAR _CustomConditions folders), "oarFolders": [ "meshes/.../<mod>/<submod>", ... ]
 		// (OAR submods, path under Data), and optionally "clipSubstitutes": { "mrh_chargeloop.hkx": "mrh_precharge.hkx" }
 		// for those folders, when the mod keeps a casting motion in another clip than vanilla does
+		// "leftHandSpells": [ "W3S.esl|0x000801", ... ] for DAR folders whose animations are left hand only: the
+		// patch's spells bound with the hand on Auto are cast with the left hand (when one of its folders is installed)
+		struct LeftHandRule
+		{
+			std::vector<int>         darFolders;
+			std::vector<std::string> spells;
+		};
+
 		struct Patched
 		{
 			std::map<int, ClipMap>                       dar;  // folder priority -> its substitutes
 			std::vector<std::pair<std::string, ClipMap>> oar;
+			std::vector<LeftHandRule>                    leftHand;
 
 			bool empty() const { return dar.empty() && oar.empty(); }
 		};
+
+		// the spells of the left hand rules whose folders were found, as plugin keys; resolved on first use
+		std::vector<std::string>       leftHandKeys;
+		std::unordered_set<RE::FormID> leftHandSpells;
+		std::once_flag                 leftHandResolved;
 
 		Patched PatchedFolders()
 		{
@@ -630,13 +638,23 @@ namespace Replacers
 					ClipMap       substitutes;
 					for (const auto& [clip, replacement] : j.value("clipSubstitutes", json::object()).items()) {
 						if (replacement.is_string()) {
-							substitutes.emplace(Lower(clip), Lower(replacement.get<std::string>()));
+							substitutes.emplace(ToLower(clip), ToLower(replacement.get<std::string>()));
 						}
 					}
+					LeftHandRule leftHand;
 					for (const auto& folder : j.value("darFolders", json::array())) {
 						if (folder.is_number_integer()) {
 							out.dar.emplace(folder.get<int>(), substitutes);
+							leftHand.darFolders.push_back(folder.get<int>());
 						}
+					}
+					for (const auto& spell : j.value("leftHandSpells", json::array())) {
+						if (spell.is_string()) {
+							leftHand.spells.push_back(spell.get<std::string>());
+						}
+					}
+					if (!leftHand.spells.empty()) {
+						out.leftHand.push_back(std::move(leftHand));
 					}
 					for (const auto& folder : j.value("oarFolders", json::array())) {
 						if (folder.is_string()) {
@@ -672,12 +690,12 @@ namespace Replacers
 		// replacementAnimDatas (or none if the whole animation is off), sorted so the output stays the same
 		std::vector<fs::path> VariantFiles(const fs::path& a_dir, const json& a_config)
 		{
-			const auto                      dirName = Lower(a_dir.filename().string());
+			const auto                      dirName = ToLower(a_dir.filename().string());
 			std::unordered_set<std::string> disabled;
 			for (const auto& data : a_config.value("replacementAnimDatas", json::array())) {
 				auto path = data.value("path", "");
 				std::ranges::replace(path, '\\', '/');
-				if (Lower(fs::path(path).filename().string()) != dirName) {
+				if (ToLower(fs::path(path).filename().string()) != dirName) {
 					continue;
 				}
 				if (data.value("disabled", false)) {
@@ -685,14 +703,14 @@ namespace Replacers
 				}
 				for (const auto& variant : data.value("variants", json::array())) {
 					if (variant.value("disabled", false)) {
-						disabled.insert(Lower(variant.value("filename", "")));
+						disabled.insert(ToLower(variant.value("filename", "")));
 					}
 				}
 			}
 			std::vector<fs::path> files;
 			std::error_code       ec;
 			for (const auto& entry : fs::directory_iterator(a_dir, ec)) {
-				const auto name = Lower(entry.path().filename().string());
+				const auto name = ToLower(entry.path().filename().string());
 				if (entry.is_regular_file(ec) && name.ends_with(".hkx") && !disabled.contains(name)) {
 					files.push_back(entry.path());
 				}
@@ -725,7 +743,7 @@ namespace Replacers
 				Folder                                                 folder{ .view = a_view, .priority = a_priority, .dir = a_dir };
 				std::unordered_map<std::string, std::vector<fs::path>> files;
 				for (const auto& entry : fs::directory_iterator(a_dir, ec)) {
-					const auto name = Lower(entry.path().filename().string());
+					const auto name = ToLower(entry.path().filename().string());
 					if (entry.is_regular_file(ec)) {
 						files.try_emplace(name, std::vector{ entry.path() });
 					} else if (a_oarConfig && name.starts_with(kVariantsPrefix) && entry.is_directory(ec)) {
@@ -806,7 +824,7 @@ namespace Replacers
 					logs::info("Casting animations: {} is disabled in OAR, skipped", dir.string());
 					continue;
 				}
-				const int view = Lower(entry).find("_1stperson") != std::string::npos ? 1 : 0;
+				const int view = ToLower(entry).find("_1stperson") != std::string::npos ? 1 : 0;
 				addFolder(view, config->value("priority", 0), dir, substitutes, &*config, [&](auto& a_groups, std::string& a_error) {
 					try {
 						return ParseOarConditions(config->value("conditions", json::array()), a_groups, a_error);
@@ -1027,6 +1045,14 @@ namespace Replacers
 		try {
 			if (const auto patched = PatchedFolders(); !patched.empty()) {
 				ScanFolders(patched);
+				for (const auto& rule : patched.leftHand) {
+					const bool found = std::ranges::any_of(folders, [&](const Folder& a_folder) {
+						return a_folder.dir.parent_path().filename() == "_CustomConditions" && std::ranges::contains(rule.darFolders, a_folder.priority);
+					});
+					if (found) {
+						leftHandKeys.insert(leftHandKeys.end(), rule.spells.begin(), rule.spells.end());
+					}
+				}
 			}
 			logs::info("Casting animations: {} replacer clips in {} folders", sources.size(), folders.size());
 			WriteOutput();
@@ -1115,6 +1141,21 @@ namespace Replacers
 		}
 		const auto& source = sources[a_variant - 1];
 		return chosen[source.view * kRoleCount + source.role].load() == a_variant;
+	}
+
+	bool CastsWithLeftHand(const RE::MagicItem* a_item)
+	{
+		std::call_once(leftHandResolved, [] {
+			for (const auto& key : leftHandKeys) {
+				if (const auto id = Util::FromPluginKey(key)) {
+					leftHandSpells.insert(id);
+				}
+			}
+			if (!leftHandSpells.empty()) {
+				logs::info("Casting animations: {} spells cast with the left hand when bound to Auto", leftHandSpells.size());
+			}
+		});
+		return a_item && leftHandSpells.contains(a_item->GetFormID());
 	}
 
 	std::optional<float> ReleaseDuration(bool a_firstPerson)

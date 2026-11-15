@@ -254,5 +254,8 @@
   "Previous bar": "Предыдущая панель",
   "Next bar": "Следующая панель",
   "Picked slot": "Выбранная ячейка",
-  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Рамка ячейки, выбранной через выбор ячейки (Назначения > Клавиши)."
+  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Рамка ячейки, выбранной через выбор ячейки (Назначения > Клавиши).",
+  "Bar in menus": "Панель в меню",
+  "Open the bar in menus with a key": "Открывать панель в меню клавишей",
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "Вкл.: в меню инвентаря, магии и избранного панель сначала закрыта, а клавиши ячеек\nделают то, что с ними делает меню (или другой мод). Нажмите там эту клавишу, чтобы показать панель,\nзатем клавишу ячейки, чтобы поместить на неё выбранный предмет. Повторное нажатие закрывает панель.\nПри каждом открытии меню она снова закрыта."
 }

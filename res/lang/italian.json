@@ -254,5 +254,8 @@
   "Previous bar": "Barra precedente",
   "Next bar": "Barra successiva",
   "Picked slot": "Slot scelto",
-  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Cornice dello slot scelto con la selezione slot (Assegnazioni > Tasti)."
+  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Cornice dello slot scelto con la selezione slot (Assegnazioni > Tasti).",
+  "Bar in menus": "Barra nei menu",
+  "Open the bar in menus with a key": "Apri la barra nei menu con un tasto",
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "Attivo: nei menu Inventario, Magia e Preferiti la barra parte chiusa e i tasti degli slot\nfanno ciò che ne fa il menu (o un'altra mod). Premi questo tasto per mostrare la barra,\npoi un tasto slot per metterci l'oggetto selezionato. Premilo di nuovo per chiudere la barra.\nSi richiude ogni volta che apri il menu."
 }

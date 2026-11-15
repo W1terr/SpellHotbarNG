@@ -179,6 +179,10 @@ struct Settings
 	bool                                      castDuringAttacks{ false };  // a hotbar cast during a weapon attack stops the attack
 	bool                                      unfavoriteRemoves{ true };   // unfavoriting something takes it off the bar, like a vanilla hotkey
 	bool                                      bindInFavorites{ true };     // slot keys bind in the Favorites menu (off: they set the game's hotkeys there)
+	// the bar starts closed in the inventory / magic / favorites menu: slot keys there are the game's (and other mods')
+	// until menuBarKey opens it for binding
+	bool                                      menuBarKeyEnabled{ false };
+	std::uint32_t                             menuBarKey{ 0x23 };          // H
 
 	// what slot keys do
 	KeyMode       keyMode{ KeyMode::kCast };
@@ -201,9 +205,7 @@ namespace Config
 	// Lock shared by input, update, HUD and menu code
 	std::recursive_mutex& Lock();
 
-	// Documents\My Games\Skyrim Special Edition\SKSE\SpellHotbarNG
-	std::filesystem::path UserDir();
-	// Data\SKSE\Plugins\SpellHotbarNG
+	// Data\SKSE\Plugins\SpellHotbarNG: settings, profiles and everything the mod writes (Mod Organizer 2: overwrite folder)
 	std::filesystem::path DataDir();
 
 	void Load();

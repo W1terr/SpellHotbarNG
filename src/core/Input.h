@@ -31,6 +31,10 @@ namespace Input
 	// Without it always true. Binding in menus works either way.
 	bool MainBarOpen();
 
+	// The bar in the inventory / magic / favorites menu: closed until the menu bar key opens it when that option is on
+	// (closed, slot keys there are the game's), always open otherwise
+	bool MenuBarOpen();
+
 	// Seconds since a slot key (not the Oblivion style cast / potion key) was last pressed (also to bind), 0 while one is
 	// held. Large if none was pressed yet.
 	float SinceSlotKey();

@@ -254,5 +254,8 @@
   "Previous bar": "Barre précédente",
   "Next bar": "Barre suivante",
   "Picked slot": "Emplacement choisi",
-  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Cadre de l'emplacement choisi avec la sélection d'emplacement (Attributions > Touches)."
+  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Cadre de l'emplacement choisi avec la sélection d'emplacement (Attributions > Touches).",
+  "Bar in menus": "Barre dans les menus",
+  "Open the bar in menus with a key": "Ouvrir la barre dans les menus avec une touche",
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "Activé : dans les menus Inventaire, Magie et Favoris, la barre est d'abord fermée et les touches\nd'emplacement font ce que le menu (ou un autre mod) en fait. Appuyez sur cette touche pour afficher la barre,\npuis sur une touche d'emplacement pour y mettre l'objet sélectionné. Appuyez à nouveau pour la fermer.\nElle est refermée à chaque ouverture du menu."
 }

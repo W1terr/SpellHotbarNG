@@ -254,5 +254,8 @@
   "Previous bar": "Vorherige Leiste",
   "Next bar": "Nächste Leiste",
   "Picked slot": "Gewählter Platz",
-  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Rahmen des mit der Platzauswahl gewählten Platzes (Belegung > Tasten)."
+  "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "Rahmen des mit der Platzauswahl gewählten Platzes (Belegung > Tasten).",
+  "Bar in menus": "Leiste in Menüs",
+  "Open the bar in menus with a key": "Leiste in Menüs mit einer Taste öffnen",
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "An: Im Inventar-, Magie- und Favoritenmenü ist die Leiste zuerst geschlossen und die Slot-Tasten\nmachen, was das Menü (oder eine andere Mod) damit macht. Drücke dort diese Taste, um die Leiste zu zeigen,\nund dann eine Slot-Taste, um den gewählten Gegenstand darauf zu legen. Erneut drücken schließt die Leiste.\nBei jedem Öffnen des Menüs ist sie wieder geschlossen."
 }

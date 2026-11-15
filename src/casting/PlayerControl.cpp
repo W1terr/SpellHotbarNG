@@ -1,6 +1,7 @@
 #include "casting/PlayerControl.h"
 
 #include "core/Config.h"
+#include "core/Util.h"
 
 namespace PlayerControl
 {
@@ -9,7 +10,7 @@ namespace PlayerControl
 		constexpr float kAimDistance = 10000.0f;  // game units the crosshair ray reaches
 		constexpr float kTwoPi = 6.2831853f;
 
-		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
+		using Util::Player;
 
 		float NormalizeAngle(float a_angle)
 		{

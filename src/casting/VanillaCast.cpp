@@ -1,4 +1,5 @@
 #include "casting/VanillaCast.h"
+#include "core/Util.h"
 
 namespace VanillaCast
 {
@@ -42,7 +43,7 @@ namespace VanillaCast
 		constexpr float kFinishTimeout = 5.0f;
 		constexpr float kRestoreDelay = 0.3f;
 
-		RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
+		using Util::Player;
 
 		RE::BGSEquipSlot* VoiceSlot()
 		{

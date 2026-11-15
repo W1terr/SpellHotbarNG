@@ -1,6 +1,7 @@
 #include "casting/StrangeRunes.h"
 
 #include "core/Config.h"
+#include "core/Util.h"
 
 namespace StrangeRunes
 {
@@ -30,10 +31,7 @@ namespace StrangeRunes
 		std::vector<RE::SpellItem*> active;   // rune spells added for the running cast
 		std::vector<std::pair<RE::SpellItem*, float>> leaving;  // taken off when their time runs out
 
-		RE::PlayerCharacter* Player()
-		{
-			return RE::PlayerCharacter::GetSingleton();
-		}
+		using Util::Player;
 
 		bool Installed()
 		{
