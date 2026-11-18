@@ -354,6 +354,18 @@ namespace Input
 			case Bindings::MenuBind::kCleared:
 				RE::PlaySound("UIUnFavorite");
 				break;
+			case Bindings::MenuBind::kAddedToSet:
+				logs::info("Bind {}: added to the gear set ({} items)", target, Bindings::Items(Bindings::Get(a_page, a_slot)).size());
+				RE::PlaySound("UIFavorite");
+				break;
+			case Bindings::MenuBind::kRemovedFromSet:
+				logs::info("Bind {}: removed from the gear set", target);
+				RE::PlaySound("UIUnFavorite");
+				break;
+			case Bindings::MenuBind::kSetRefused:
+				logs::info("Bind {}: doesn't fit the gear set (full, or the same body part)", target);
+				RE::PlaySound("MAGFailSD");
+				break;
 			}
 		}
 

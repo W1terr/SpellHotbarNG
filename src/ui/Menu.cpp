@@ -667,6 +667,12 @@ namespace UI
 			Help("On: when you unfavorite a spell, item, power or shout that's on the bar, it's taken off the bar,\n"
 				 "like a favorites hotkey in the base game.\n"
 				 "Off: the bar keeps it until you clear the slot yourself.");
+			Changed(Checkbox(Id("Gear sets in slots", "gearSets").c_str(), &s.gearSets));
+			Help("On: putting a weapon or armor on a slot that already has one adds it to that slot instead of\n"
+				 "replacing it: up to 2 one-handed weapons (the first goes in the right hand, the second in the left)\n"
+				 "or up to 4 armor pieces. Putting the same item there again takes it out of the set.\n"
+				 "The slot key then equips the whole set, or takes it off when all of it is worn.\n"
+				 "Off: a new item replaces what's on the slot.");
 			Changed(Checkbox(Id("Slot keys only use the hotbar", "blockGameInput").c_str(), &s.blockGameInput));
 			Help("On: pressing a slot key only uses that slot.\n"
 				 "Off: the key also does what Skyrim normally does with it (for example 1 - 8 also use your favorites).\n"
@@ -763,7 +769,18 @@ namespace UI
 				IconImage(form, iconSize);
 				SameLine();
 				AlignTextToFramePadding();
-				if (form) {
+				auto&      binding = Bindings::Get(page, slot);
+				const bool gearSet = form && binding.IsGearSet();
+				const auto items = gearSet ? Bindings::ItemForms(binding) : std::vector<RE::TESForm*>{};
+				if (gearSet) {
+					std::string names;
+					for (const auto item : items) {
+						names += (names.empty() ? "" : " + ") + FormLabel(item);
+					}
+					Text("%s", names.c_str());
+					SameLine();
+					TextColored(kGrey, "%s", T("Gear set"));
+				} else if (form) {
 					Text("%s", FormLabel(form).c_str());
 					SameLine();
 					TextColored(kGrey, "%s", TypeName(form));
@@ -771,10 +788,29 @@ namespace UI
 					TextDisabled("%s", T("empty"));
 				}
 
-				// same choices as pressing the slot key again in the Magic menu (weapons: no "both")
+				// same choices as pressing the slot key again in the Magic menu (weapons: no "both"). A gear set's
+				// weapons: one hand each, in the order of their names; picking a hand for one gives the other the other.
 				TableNextColumn();
-				if (form && Bindings::UsesHand(form)) {
-					auto&     binding = Bindings::Get(page, slot);
+				if (gearSet && form->Is(RE::FormType::Weapon)) {
+					const char* sides[] = { handNames[static_cast<int>(Hand::kRight)], handNames[static_cast<int>(Hand::kLeft)] };
+					for (std::size_t i = 0; i < items.size(); ++i) {
+						const bool swapped = binding.hand == Hand::kLeft;
+						int        side = (i > 0) != swapped ? 1 : 0;
+						PushID(static_cast<int>(i));
+						if (i > 0) {
+							SameLine();
+						}
+						SetNextItemWidth(handWidth);
+						if (Combo("##weaponHand", &side, sides, 2)) {
+							// the first weapon goes left = swapped
+							binding.hand = ((side == 1) != (i > 0)) ? Hand::kLeft : Hand::kAuto;
+						}
+						if (IsItemHovered()) {
+							SetTooltip("%s", FormLabel(items[i]).c_str());
+						}
+						PopID();
+					}
+				} else if (form && Bindings::UsesHand(form)) {
 					int       hand = static_cast<int>(binding.hand);
 					const int count = form->Is(RE::FormType::Weapon) ? 3 : 4;
 					SetNextItemWidth(handWidth);
@@ -785,8 +821,7 @@ namespace UI
 
 				TableNextColumn();
 				if (form && Bindings::UsesMode(form)) {
-					auto& binding = Bindings::Get(page, slot);
-					int   mode = static_cast<int>(binding.mode);
+					int mode = static_cast<int>(binding.mode);
 					SetNextItemWidth(modeWidth);
 					if (Combo("##mode", &mode, modeNames, static_cast<int>(std::size(modeNames)))) {
 						binding.mode = static_cast<SlotMode>(mode);

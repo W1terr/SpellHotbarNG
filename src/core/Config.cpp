@@ -203,6 +203,7 @@ namespace Config
 		j["individualShoutCooldowns"] = s.individualShoutCooldowns;
 		j["castDuringAttacks"] = s.castDuringAttacks;
 		j["unfavoriteRemoves"] = s.unfavoriteRemoves;
+		j["gearSets"] = s.gearSets;
 		j["bindInFavorites"] = s.bindInFavorites;
 		j["menuBarKeyEnabled"] = s.menuBarKeyEnabled;
 		j["menuBarKey"] = s.menuBarKey;
@@ -296,6 +297,7 @@ namespace Config
 		Read(j, "individualShoutCooldowns", s.individualShoutCooldowns);
 		Read(j, "castDuringAttacks", s.castDuringAttacks);
 		Read(j, "unfavoriteRemoves", s.unfavoriteRemoves);
+		Read(j, "gearSets", s.gearSets);
 		Read(j, "bindInFavorites", s.bindInFavorites);
 		Read(j, "menuBarKeyEnabled", s.menuBarKeyEnabled);
 		Read(j, "menuBarKey", s.menuBarKey);

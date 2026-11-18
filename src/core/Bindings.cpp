@@ -12,7 +12,7 @@ namespace Bindings
 		constexpr std::uint32_t kRecordBindings = 'BIND';
 		constexpr std::uint32_t kRecordReady = 'REDY';
 		constexpr std::uint32_t kRecordVersion = 1;
-		constexpr std::uint32_t kBindingsVersion = 2;  // v2: + slot mode
+		constexpr std::uint32_t kBindingsVersion = 4;  // v2: + slot mode, v4: + gear set (v3 was a test build's cast time)
 
 		std::array<std::array<SlotBinding, kMaxSlots>, kPageCount> slots{};
 		SlotBinding                                                readySpell{};
@@ -82,6 +82,93 @@ namespace Bindings
 			return page >= 0 && page < kPageCount && a_slot >= 0 && a_slot < kMaxSlots;
 		}
 
+		// ---- gear sets ---------------------------------------------------------------------------------------------
+
+		enum class GearKind
+		{
+			kNone,
+			kWeapon,  // one-handed: two-handed weapons, bows and crossbows can't be in a set
+			kArmor
+		};
+
+		GearKind KindOf(const RE::TESForm* a_form)
+		{
+			if (const auto weapon = a_form ? a_form->As<RE::TESObjectWEAP>() : nullptr) {
+				using Type = RE::WEAPON_TYPE;
+				switch (weapon->GetWeaponType()) {
+				case Type::kTwoHandSword:
+				case Type::kTwoHandAxe:
+				case Type::kBow:
+				case Type::kCrossbow:
+					return GearKind::kNone;
+				default:
+					return GearKind::kWeapon;
+				}
+			}
+			return a_form && a_form->Is(RE::FormType::Armor) ? GearKind::kArmor : GearKind::kNone;
+		}
+
+		// the slot holds a_items (first one = `form`), hand and mode kept; no items empties it
+		void SetItems(SlotBinding& a_binding, const std::vector<RE::FormID>& a_items)
+		{
+			if (a_items.empty()) {
+				a_binding = {};
+				return;
+			}
+			a_binding.form = a_items[0];
+			a_binding.set = {};
+			for (std::size_t i = 1; i < a_items.size() && i < kMaxGearSet; ++i) {
+				a_binding.set[i - 1] = a_items[i];
+			}
+		}
+
+		bool RemoveItem(SlotBinding& a_binding, RE::FormID a_form)
+		{
+			auto items = Items(a_binding);
+			if (std::erase(items, a_form) == 0) {
+				return false;
+			}
+			if (a_binding.IsGearSet()) {
+				a_binding.hand = Hand::kAuto;  // a weapon set's hands were for the two of them
+			}
+			SetItems(a_binding, items);
+			return true;
+		}
+
+		// nullopt: not a gear set bind, the slot is bound as without the option
+		std::optional<MenuBind> BindToSet(SlotBinding& a_binding, const RE::TESForm* a_form)
+		{
+			const auto kind = KindOf(a_form);
+			if (kind == GearKind::kNone || KindOf(RE::TESForm::LookupByID(a_binding.form)) != kind) {
+				return std::nullopt;
+			}
+			const auto id = a_form->GetFormID();
+			auto       items = Items(a_binding);
+			if (std::ranges::find(items, id) != items.end()) {
+				if (!a_binding.IsGearSet()) {
+					return std::nullopt;  // one item: its hand cycles / it's cleared as before
+				}
+				RemoveItem(a_binding, id);
+				return MenuBind::kRemovedFromSet;
+			}
+			if (items.size() >= static_cast<std::size_t>(kind == GearKind::kWeapon ? kMaxWeaponSet : kMaxGearSet)) {
+				return MenuBind::kSetRefused;
+			}
+			if (kind == GearKind::kArmor) {
+				const auto mask = a_form->As<RE::TESObjectARMO>()->GetSlotMask().underlying();
+				for (const auto other : items) {
+					const auto armor = RE::TESForm::LookupByID<RE::TESObjectARMO>(other);
+					if (armor && (armor->GetSlotMask().underlying() & mask) != 0) {
+						return MenuBind::kSetRefused;  // they can't be worn together
+					}
+				}
+			}
+			items.push_back(id);
+			SetItems(a_binding, items);
+			a_binding.hand = Hand::kAuto;  // weapons: the first one in the right hand, the second in the left
+			return MenuBind::kAddedToSet;
+		}
+
 		void OnSave(SKSE::SerializationInterface* a_intfc)
 		{
 			std::scoped_lock lock(Config::Lock());
@@ -108,6 +195,11 @@ namespace Bindings
 				a_intfc->WriteRecordData(binding.form);
 				a_intfc->WriteRecordData(static_cast<std::uint8_t>(binding.hand));
 				a_intfc->WriteRecordData(static_cast<std::uint8_t>(binding.mode));
+				const auto items = Items(binding);
+				a_intfc->WriteRecordData(static_cast<std::uint8_t>(items.size() - 1));
+				for (std::size_t i = 1; i < items.size(); ++i) {
+					a_intfc->WriteRecordData(items[i]);
+				}
 			}
 			logs::info("Saved {} slot bindings", count);
 			WriteReady(a_intfc);
@@ -135,7 +227,7 @@ namespace Bindings
 					continue;
 				}
 				// v3 (a 1.9.5 test build) also had a cast time per slot, which is skipped
-				if (type != kRecordBindings || version < 1 || version > 3) {
+				if (type != kRecordBindings || version < 1 || version > kBindingsVersion) {
 					logs::warn("Unknown co-save record {:X} v{}", type, version);
 					continue;
 				}
@@ -152,19 +244,36 @@ namespace Bindings
 					if (version >= 2) {
 						a_intfc->ReadRecordData(mode);
 					}
-					if (version >= 3) {
+					if (version == 3) {
 						float castTime = 0.0f;
 						a_intfc->ReadRecordData(castTime);
 					}
+					std::vector<RE::FormID> items{ form };
+					if (version >= 4) {
+						std::uint8_t others = 0;
+						a_intfc->ReadRecordData(others);
+						for (std::uint8_t k = 0; k < others; ++k) {
+							RE::FormID other = 0;
+							a_intfc->ReadRecordData(other);
+							items.push_back(other);
+						}
+					}
 
-					RE::FormID resolved = 0;
-					if (!a_intfc->ResolveFormID(form, resolved) || !Valid(static_cast<Page>(page), slot)) {
+					// items of removed plugins drop out, the rest of a set stays
+					std::erase_if(items, [&](RE::FormID& a_item) {
+						RE::FormID resolved = 0;
+						if (!a_intfc->ResolveFormID(a_item, resolved) || !RE::TESForm::LookupByID(resolved)) {
+							return true;
+						}
+						a_item = resolved;
+						return false;
+					});
+					if (items.empty() || !Valid(static_cast<Page>(page), slot)) {
 						continue;
 					}
-					if (!RE::TESForm::LookupByID(resolved)) {
-						continue;
-					}
-					slots[page][slot] = { resolved, static_cast<Hand>(std::min<std::uint8_t>(hand, 3)), static_cast<SlotMode>(std::min<std::uint8_t>(mode, 2)) };
+					auto& binding = slots[page][slot];
+					binding = { 0, static_cast<Hand>(std::min<std::uint8_t>(hand, 3)), static_cast<SlotMode>(std::min<std::uint8_t>(mode, 2)) };
+					SetItems(binding, items);
 					++restored;
 				}
 				logs::info("Loaded {} of {} slot bindings", restored, count);
@@ -245,10 +354,14 @@ namespace Bindings
 		bound.push_back(&readySpell);
 		bound.push_back(&readyPotion);
 
-		std::unordered_map<RE::FormID, bool> seen;
+		std::vector<RE::FormID> ids;
 		for (const auto binding : bound) {
-			const auto id = binding->form;
-			if (id == 0 || seen.contains(id)) {
+			std::ranges::copy(Items(*binding), std::back_inserter(ids));
+		}
+
+		std::unordered_map<RE::FormID, bool> seen;
+		for (const auto id : ids) {
+			if (seen.contains(id)) {
 				continue;
 			}
 			const auto form = RE::TESForm::LookupByID(id);
@@ -261,13 +374,10 @@ namespace Bindings
 			}
 			seen[id] = *now;
 			if (wasFavorite && !*now) {
-				// unfavorited, like a vanilla favorite hotkey: off the bar (every slot holding it)
+				// unfavorited, like a vanilla favorite hotkey: off the bar (every slot holding it, also in gear sets)
 				int cleared = 0;
 				for (const auto other : bound) {
-					if (other->form == id) {
-						*other = {};
-						++cleared;
-					}
+					cleared += RemoveItem(*other, id) ? 1 : 0;
 				}
 				logs::info("{} was unfavorited: removed from {} slot(s)", form->GetName(), cleared);
 			}
@@ -281,7 +391,12 @@ namespace Bindings
 			return MenuBind::kCleared;
 		}
 		auto& binding = Get(a_page, a_slot);
-		if (binding.form != a_form->GetFormID()) {
+		if (Config::Get().gearSets && !IsReadySlot(a_slot) && !binding.Empty()) {
+			if (const auto result = BindToSet(binding, a_form)) {
+				return *result;
+			}
+		}
+		if (binding.form != a_form->GetFormID() || binding.IsGearSet()) {
 			binding = { a_form->GetFormID(), Hand::kAuto };
 			return MenuBind::kBound;
 		}
@@ -301,6 +416,32 @@ namespace Bindings
 			break;
 		}
 		return MenuBind::kHandChanged;
+	}
+
+	std::vector<RE::FormID> Items(const SlotBinding& a_binding)
+	{
+		std::vector<RE::FormID> out;
+		if (a_binding.Empty()) {
+			return out;
+		}
+		out.push_back(a_binding.form);
+		for (const auto id : a_binding.set) {
+			if (id != 0) {
+				out.push_back(id);
+			}
+		}
+		return out;
+	}
+
+	std::vector<RE::TESForm*> ItemForms(const SlotBinding& a_binding)
+	{
+		std::vector<RE::TESForm*> out;
+		for (const auto id : Items(a_binding)) {
+			if (const auto form = RE::TESForm::LookupByID(id)) {
+				out.push_back(form);
+			}
+		}
+		return out;
 	}
 
 	bool UsesHand(const RE::TESForm* a_form)
@@ -378,8 +519,18 @@ namespace Bindings
 				if (key.empty()) {
 					continue;  // player made potions etc. only exist in that save
 				}
-				out.push_back({ { "page", page }, { "slot", slot }, { "form", key }, { "hand", static_cast<int>(binding.hand) },
-					{ "mode", static_cast<int>(binding.mode) } });
+				json entry{ { "page", page }, { "slot", slot }, { "form", key }, { "hand", static_cast<int>(binding.hand) },
+					{ "mode", static_cast<int>(binding.mode) } };
+				if (binding.IsGearSet()) {
+					json set = json::array();
+					for (const auto id : binding.set) {
+						if (auto other = id ? Util::ToPluginKey(id) : std::string{}; !other.empty()) {
+							set.push_back(std::move(other));
+						}
+					}
+					entry["set"] = std::move(set);
+				}
+				out.push_back(std::move(entry));
 			}
 		}
 		return out;
@@ -398,7 +549,18 @@ namespace Bindings
 			const auto hand = std::clamp(entry.value("hand", 0), 0, 3);
 			const auto mode = std::clamp(entry.value("mode", 0), 0, 2);
 			if (form && RE::TESForm::LookupByID(form) && Valid(static_cast<Page>(page), slot)) {
-				slots[page][slot] = { form, static_cast<Hand>(hand), static_cast<SlotMode>(mode) };
+				auto& binding = slots[page][slot];
+				binding = { form, static_cast<Hand>(hand), static_cast<SlotMode>(mode) };
+				if (const auto set = entry.find("set"); set != entry.end() && set->is_array()) {
+					std::vector<RE::FormID> items{ form };
+					for (const auto& other : *set) {
+						const auto id = other.is_string() ? Util::FromPluginKey(other.get<std::string>()) : 0;
+						if (id && RE::TESForm::LookupByID(id)) {
+							items.push_back(id);
+						}
+					}
+					SetItems(binding, items);
+				}
 			}
 		}
 	}

@@ -18,9 +18,6 @@
 
 #include <cstdint>
 
-// Vendored from https://codeberg.org/chiktabba/ReticleArcs (api/ReticleArcsAPI.h, commit 355e6d5). Only change:
-// REX::W32 GetModuleHandleW / GetProcAddress (CommonLibSSE-NG builds without windows.h).
-
 // Reticle Arcs add-on interface. UNSUPPORTED FOR NOW: it may change without notice while it settles.
 //
 // an add-on is an SKSE plugin showing its own bar beside Reticle Arcs' own. Reticle Arcs draws it in the player's look and
@@ -29,7 +26,8 @@
 // add-on's callback stops that add-on, not the game
 namespace ReticleArcsAPI {
     // 2: colours for the built-in bars (SetColorProvider), reading them (GetBarState)
-    inline constexpr std::uint32_t kVersion = 2;
+    // 3: casts the game's hands don't make, like a hotbar's, shown on the spell bars (SetCastProvider)
+    inline constexpr std::uint32_t kVersion = 3;
 
     // the built-in bars
     enum class Bar : std::uint32_t {
@@ -160,6 +158,36 @@ namespace ReticleArcsAPI {
         bool refused = false;
     };
 
+    enum class Hand : std::uint32_t {
+        kRight,
+        kLeft,
+        // a dual cast or master ritual, shown on both spell bars
+        kBoth,
+    };
+
+    // a cast made outside the hands' own casters. Reticle Arcs hands it over zeroed; later versions only add fields at the end
+    struct CastState {
+        // set by Reticle Arcs, the size of the struct it hands over
+        std::uint32_t size = sizeof(CastState);
+        // charging or channelled
+        bool active = false;
+        // the spell or scroll. its school and element colour the bar as for a cast from the hands
+        std::uint32_t formID = 0;
+        // the charge, 0 to 1. full is held as charged until the cast goes
+        float percent = 0.0f;
+        // a concentration spell kept going: percent is ignored, the bar shows the magicka left
+        bool channel = false;
+        Hand hand = Hand::kRight;
+        // for the frame it stops showing: cut short, by a stagger or a cancel, rather than cast
+        bool broken = false;
+        // for one frame while not active: the warning flash on the hand's bar, as for a spell that can't be afforded
+        bool refused = false;
+    };
+
+    // main thread, every frame no kill move or killcam is playing, seconds since the last call. a hand charging or channelling a
+    // spell of its own is shown instead. keep it cheap, the frame waits for it
+    using CastFn = void (*)(float a_delta, CastState& a_state);
+
     class IReticleArcs {
     public:
         // the newest version this Reticle Arcs offers
@@ -173,6 +201,10 @@ namespace ReticleArcsAPI {
         // version 2. main thread. false for a bar that isn't one, or while the settings page shows its preview
         virtual bool GetBarState(Bar a_bar, BarInfo& a_info) const = 0;
 
+        // version 3. any time from SKSE's kPostLoad message on; one provider at a time, the last one set wins. nullptr
+        // removes it
+        virtual void SetCastProvider(CastFn a_provider) = 0;
+
     protected:
         ~IReticleArcs() = default;
     };
@@ -182,9 +214,15 @@ namespace ReticleArcsAPI {
 
     // nullptr when Reticle Arcs isn't installed or is older than the version asked for. an add-on needing only bars can
     // ask for 1 and keep working with older Reticle Arcs
+    // windows.h's functions where it's included, else CommonLibSSE-NG's own (REX::W32), which builds without it
     inline IReticleArcs* Request(std::uint32_t a_version = kVersion) {
+#ifdef _WINDOWS_
+        auto* module = ::GetModuleHandleW(L"ReticleArcs.dll");
+        auto* request = module ? reinterpret_cast<RequestFunction>(::GetProcAddress(module, "RequestReticleArcsAPI")) : nullptr;
+#else
         auto* module = REX::W32::GetModuleHandleW(L"ReticleArcs.dll");
         auto* request = module ? reinterpret_cast<RequestFunction>(REX::W32::GetProcAddress(module, "RequestReticleArcsAPI")) : nullptr;
+#endif
         return request ? request(a_version) : nullptr;
     }
 }

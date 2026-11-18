@@ -131,10 +131,70 @@ namespace ReticleArcs
 			bar.preview = Preview;
 			return bar;
 		}
+
+		// Reticle Arcs 2.1.0 and later (interface 3): hotbar casts shown on its own left / right spell bars, in the spell's
+		// colours and with the player's effects. Reticle Arcs drains channels by the magicka left, shows a hand's own cast
+		// first and resets after a load
+		struct ProvidedCast
+		{
+			bool          shown{ false };
+			std::uint32_t ended{ 0 };  // Actions::Events().ended when it started showing
+			std::uint32_t refusedLeft{ 0 };
+			std::uint32_t refusedRight{ 0 };
+		};
+		ProvidedCast provided;
+
+		ReticleArcsAPI::Hand HandOf(bool a_left, bool a_right)
+		{
+			using Hand = ReticleArcsAPI::Hand;
+			return a_left && a_right ? Hand::kBoth : a_left ? Hand::kLeft : Hand::kRight;
+		}
+
+		void OnCast(float, ReticleArcsAPI::CastState& a_state)
+		{
+			std::scoped_lock lock(Config::Lock());
+			const auto&      events = Actions::Events();
+			const auto       cast = Actions::CurrentHandCast();
+			// a concentration spell's short wind-up isn't worth a bar: it shows once it channels
+			if (cast && (cast->channeling || cast->item->GetCastingType() != RE::MagicSystem::CastingType::kConcentration)) {
+				a_state.active = true;
+				a_state.formID = cast->item->GetFormID();
+				a_state.percent = cast->progress;  // ignored while channelling
+				a_state.channel = cast->channeling;
+				a_state.hand = HandOf(cast->left, cast->right);
+				if (!provided.shown) {
+					provided.shown = true;
+					provided.ended = events.ended;
+				}
+			} else if (provided.shown) {
+				// the frame it stops: the break effect when the cast ended without going off (fizzled, let go)
+				provided.shown = false;
+				a_state.broken = events.ended != provided.ended && !events.lastFired;
+			}
+
+			// a press without enough magicka: the warning flash on that hand's bar
+			const bool refusedLeft = events.refusedLeft != provided.refusedLeft;
+			const bool refusedRight = events.refusedRight != provided.refusedRight;
+			if (refusedLeft || refusedRight) {
+				if (!a_state.active) {
+					a_state.refused = true;
+					a_state.hand = HandOf(refusedLeft, refusedRight);
+				}
+				provided.refusedLeft = events.refusedLeft;
+				provided.refusedRight = events.refusedRight;
+			}
+		}
 	}
 
 	void Init()
 	{
+		if (auto* castApi = ReticleArcsAPI::Request(3)) {
+			castApi->SetCastProvider(OnCast);
+			logs::info("Reticle Arcs found (interface {}): hotbar casts shown on its spell bars", castApi->GetVersion());
+			return;
+		}
+
+		// older Reticle Arcs: two add-on bars of our own
 		api = ReticleArcsAPI::Request(2);
 		canReadBars = api != nullptr;
 		if (!api) {

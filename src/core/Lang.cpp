@@ -15,7 +15,8 @@ namespace Lang
 			{ "polish", "Polski", "Polish" },
 			{ "russian", "\xD0\xA0\xD1\x83\xD1\x81\xD1\x81\xD0\xBA\xD0\xB8\xD0\xB9 (Russian)", "Cyrillic" },
 			{ "japanese", "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E (Japanese)", "Japanese" },
-			{ "chinese", "\xE7\xB9\x81\xE9\xAB\x94\xE4\xB8\xAD\xE6\x96\x87 (Chinese)", "Chinese" },
+			{ "chinese", "\xE7\xB9\x81\xE9\xAB\x94\xE4\xB8\xAD\xE6\x96\x87 (Traditional Chinese)", "Chinese" },
+			{ "chinese_simplified", "\xE7\xAE\x80\xE4\xBD\x93\xE4\xB8\xAD\xE6\x96\x87 (Simplified Chinese)", "Chinese" },
 		};
 
 		struct StringHash

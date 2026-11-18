@@ -257,5 +257,8 @@
   "Frame of the slot picked with slot picking (Bindings > Hotkeys).": "用欄位選擇選中的欄位的邊框（綁定 > 按鍵）。",
   "Bar in menus": "選單中的快捷列",
   "Open the bar in menus with a key": "在選單中用按鍵開啟快捷列",
-  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "開啟:在物品、魔法和最愛選單中,快捷列一開始是關閉的,欄位按鍵會照選單\n(或其他模組)的方式運作。在那裡按下這個鍵即可顯示快捷列,\n再按欄位按鍵就能放入選取的物品。再按一次此鍵關閉快捷列。\n每次開啟選單時都會重新關閉。"
+  "On: in the Inventory, Magic and Favorites menus the bar starts closed and the slot keys\ndo what the menu (or another mod) does with them. Press this key there to show the bar,\nthen press a slot key to put the selected item on it. Press the key again to close the bar.\nIt is closed again every time you open the menu.": "開啟:在物品、魔法和最愛選單中,快捷列一開始是關閉的,欄位按鍵會照選單\n(或其他模組)的方式運作。在那裡按下這個鍵即可顯示快捷列,\n再按欄位按鍵就能放入選取的物品。再按一次此鍵關閉快捷列。\n每次開啟選單時都會重新關閉。",
+  "Gear sets in slots": "欄位中的裝備組合",
+  "Gear set": "裝備組合",
+  "On: putting a weapon or armor on a slot that already has one adds it to that slot instead of\nreplacing it: up to 2 one-handed weapons (the first goes in the right hand, the second in the left)\nor up to 4 armor pieces. Putting the same item there again takes it out of the set.\nThe slot key then equips the whole set, or takes it off when all of it is worn.\nOff: a new item replaces what's on the slot.": "開啟: 把武器或護甲放到已有同類物品的欄位時, 會加入該欄位而不是取代:\n最多 2 把單手武器(第一把在右手, 第二把在左手)或最多 4 件護甲。\n再次放入同一件物品會將它移出組合。\n欄位按鍵會裝備整個組合, 全部已裝備時則卸下。\n關閉: 新物品會取代欄位中的內容。"
 }

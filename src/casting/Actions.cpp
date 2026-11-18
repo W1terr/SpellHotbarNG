@@ -869,6 +869,75 @@ namespace Actions
 				manager->EquipObject(player, a_object, FirstExtraList(a_object), 1, slot);
 			}
 		}
+
+		// The owned items of a gear set; weapons: the first one for the right hand, the second for the left (the other
+		// way round when the set's hand is Left: Bindings page)
+		struct GearPiece
+		{
+			RE::TESBoundObject*     object{ nullptr };
+			const RE::BGSEquipSlot* slot{ nullptr };  // weapons: the hand it goes in
+			bool                    left{ false };
+			bool                    on{ false };  // worn / in its hand
+		};
+
+		std::vector<GearPiece> GearPieces(const SlotBinding& a_binding)
+		{
+			const auto             player = Player();
+			const auto             ids = Bindings::Items(a_binding);
+			std::vector<GearPiece> out;
+			for (std::size_t i = 0; player && i < ids.size(); ++i) {
+				const auto object = RE::TESForm::LookupByID<RE::TESBoundObject>(ids[i]);
+				if (!object || ItemCount(object) <= 0) {
+					continue;
+				}
+				if (object->Is(RE::FormType::Weapon)) {
+					const bool left = (i > 0) != (a_binding.hand == Hand::kLeft);
+					out.push_back({ object, left ? LeftSlot() : RightSlot(), left, player->GetEquippedObject(left) == object });
+				} else {
+					out.push_back({ object, nullptr, false, IsEquipped(object) });
+				}
+			}
+			return out;
+		}
+
+		// puts on what isn't on yet, or takes it all off when everything is on (like one item's key)
+		void UseGearSet(const SlotBinding& a_binding)
+		{
+			const auto pieces = GearPieces(a_binding);
+			if (pieces.empty()) {
+				FailFeedback();
+				return;
+			}
+			const auto player = Player();
+			const auto manager = RE::ActorEquipManager::GetSingleton();
+			const bool allOn = std::ranges::all_of(pieces, &GearPiece::on);
+			// a weapon in the other hand (hands swapped on the Bindings page) leaves that hand first, right away: its item
+			// data still says worn there, and equipping it with that data doesn't move it
+			if (!allOn) {
+				for (const auto& piece : pieces) {
+					if (piece.slot && !piece.on && player->GetEquippedObject(!piece.left) == piece.object) {
+						manager->UnequipObject(player, piece.object, nullptr, 1, piece.left ? RightSlot() : LeftSlot(), false, false, false, true);
+					}
+				}
+			}
+			bool sound = true;  // one equip sound for the set
+			for (const auto& piece : pieces) {
+				if (allOn) {
+					manager->UnequipObject(player, piece.object, nullptr, 1, piece.slot, true, false, sound);
+				} else if (!piece.on) {
+					manager->EquipObject(player, piece.object, FirstExtraList(piece.object), 1, piece.slot, true, false, sound);
+				} else {
+					continue;
+				}
+				sound = false;
+			}
+		}
+	}
+
+	bool IsWorn(const SlotBinding& a_binding)
+	{
+		const auto pieces = GearPieces(a_binding);
+		return !pieces.empty() && std::ranges::all_of(pieces, &GearPiece::on);
 	}
 
 	void Use(Page a_page, int a_slot, bool a_keyHeld, std::uint32_t a_key)
@@ -938,7 +1007,11 @@ namespace Actions
 		case RE::FormType::Armor:
 		case RE::FormType::Ammo:
 		case RE::FormType::Light:
-			UseEquipment(form->As<RE::TESBoundObject>(), binding.hand);
+			if (binding.IsGearSet()) {
+				UseGearSet(binding);
+			} else {
+				UseEquipment(form->As<RE::TESBoundObject>(), binding.hand);
+			}
 			break;
 		default:
 			break;

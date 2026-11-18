@@ -178,6 +178,7 @@ struct Settings
 	bool                                      individualShoutCooldowns{ false };  // each shout its own cooldown instead of the game's shared one
 	bool                                      castDuringAttacks{ false };  // a hotbar cast during a weapon attack stops the attack
 	bool                                      unfavoriteRemoves{ true };   // unfavoriting something takes it off the bar, like a vanilla hotkey
+	bool                                      gearSets{ false };           // binding a weapon / armor on a slot of that kind adds it to the slot's set
 	bool                                      bindInFavorites{ true };     // slot keys bind in the Favorites menu (off: they set the game's hotkeys there)
 	// the bar starts closed in the inventory / magic / favorites menu: slot keys there are the game's (and other mods')
 	// until menuBarKey opens it for binding

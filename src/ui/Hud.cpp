@@ -115,8 +115,13 @@ namespace UI
 				return ImVec2{ a_icon.u0 + (a_icon.u1 - a_icon.u0) * (a_point.x - a_min.x) / (a_max.x - a_min.x),
 					a_icon.v0 + (a_icon.v1 - a_icon.v0) * (a_point.y - a_min.y) / (a_max.y - a_min.y) };
 			};
-			const ImVec2 center{ (a_min.x + a_max.x) * 0.5f, (a_min.y + a_max.y) * 0.5f };
-			const auto   tint = IconTint(a_icon, a_tint);
+			// the fan's center: the corners' average is always inside a convex outline (also a gear set's cut part)
+			ImVec2 center{ 0.0f, 0.0f };
+			for (const auto& point : a_poly) {
+				center.x += point.x / static_cast<float>(a_poly.size());
+				center.y += point.y / static_cast<float>(a_poly.size());
+			}
+			const auto tint = IconTint(a_icon, a_tint);
 			const auto   count = static_cast<int>(a_poly.size());
 			ImDrawListManager::PushTextureID(a_list, texture);
 			ImDrawListManager::PrimReserve(a_list, count * 6, count * 4);
@@ -154,6 +159,33 @@ namespace UI
 				}
 			}
 			return out;
+		}
+
+		// The part of a convex outline inside the rectangle a_min..a_max
+		Poly ClipToRect(Poly a_poly, ImVec2 a_min, ImVec2 a_max)
+		{
+			// keeps the side of x (a_axis 0) / y (1) = a_value where the coordinate is >= it (a_above) or <= it
+			const auto clip = [](const Poly& a_in, int a_axis, float a_value, bool a_above) {
+				const auto coord = [&](ImVec2 a_point) { return a_axis == 0 ? a_point.x : a_point.y; };
+				const auto inside = [&](ImVec2 a_point) { return a_above ? coord(a_point) >= a_value : coord(a_point) <= a_value; };
+				Poly       out;
+				for (std::size_t i = 0; i < a_in.size(); ++i) {
+					const auto& a = a_in[i];
+					const auto& b = a_in[(i + 1) % a_in.size()];
+					if (inside(a)) {
+						out.push_back(a);
+					}
+					if (inside(a) != inside(b)) {
+						const float t = (a_value - coord(a)) / (coord(b) - coord(a));
+						out.push_back({ a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t });
+					}
+				}
+				return out;
+			};
+			a_poly = clip(a_poly, 0, a_min.x, true);
+			a_poly = clip(a_poly, 0, a_max.x, false);
+			a_poly = clip(a_poly, 1, a_min.y, true);
+			return clip(a_poly, 1, a_max.y, false);
 		}
 
 		// Where a ray from a_center (inside the outline) at a_angle leaves the outline
@@ -483,9 +515,51 @@ namespace UI
 			}
 		}
 
-		// One slot at a_p0. a_marked = equipped highlight, a_cast = this slot's spell is charging / channeling.
-		void DrawSlot(const SlotStyle& st, ImVec2 p0, RE::TESForm* a_form, Hand a_hand, bool a_marked, const Actions::CastInfo* a_cast, const std::string& a_key)
+		// A gear set's pictures in the slot's picture area: 2 on a diagonal (the second over the first's corner), 3 or 4
+		// in a 2x2 grid (3: the third centered below). Drawn shapes cut each picture to the slot's outline.
+		void DrawGearSet(const SlotStyle& st, const SlotGeometry& g, const std::vector<RE::TESForm*>& a_items)
 		{
+			using Cell = std::pair<ImVec2, ImVec2>;
+			const std::size_t             count = std::min<std::size_t>(a_items.size(), kMaxGearSet);
+			const float                   side = g.iconMax.x - g.iconMin.x;
+			std::array<Cell, kMaxGearSet> cells{};
+			if (count == 2) {
+				const float cell = side * 0.62f;
+				cells[0] = { g.iconMin, { g.iconMin.x + cell, g.iconMin.y + cell } };
+				cells[1] = { { g.iconMax.x - cell, g.iconMax.y - cell }, g.iconMax };
+			} else {
+				const float gap = side * 0.04f;
+				const float cell = (side - gap) * 0.5f;
+				const auto  at = [&](float a_col, float a_row) {
+					const ImVec2 min{ g.iconMin.x + a_col * (cell + gap), g.iconMin.y + a_row * (cell + gap) };
+					return Cell{ min, { min.x + cell, min.y + cell } };
+				};
+				cells = { at(0.0f, 0.0f), at(1.0f, 0.0f), count == 3 ? at(0.5f, 1.0f) : at(0.0f, 1.0f), at(1.0f, 1.0f) };
+			}
+
+			for (std::size_t i = 0; i < count; ++i) {
+				const auto [min, max] = cells[i];
+				const auto icon = Icons::ForForm(a_items[i]);
+				const auto tint = Actions::IsAvailable(a_items[i]) ? st.white : st.unavailable;
+				const auto part = st.shape == SlotShape::kSquare ? Poly{ min, { max.x, min.y }, max, { min.x, max.y } } : ClipToRect(g.icon, min, max);
+				if (st.shape == SlotShape::kSquare) {
+					DrawIcon(st.list, icon, min, max, tint);
+				} else {
+					DrawIconPoly(st.list, icon, part, min, max, tint);
+				}
+				// the second of two lies over the first: a dark edge keeps them apart
+				if (count == 2 && i == 1 && part.size() >= 3) {
+					Outline(st.list, part, Color(0, 0, 0, st.alpha * 0.7f), std::max(1.0f, st.size * 0.03f));
+				}
+			}
+		}
+
+		// One slot at a_p0. a_marked = equipped highlight, a_cast = this slot's spell is charging / channeling, a_set = a
+		// gear set's items (the first one is a_form).
+		void DrawSlot(const SlotStyle& st, ImVec2 p0, RE::TESForm* a_form, Hand a_hand, bool a_marked, const Actions::CastInfo* a_cast,
+			const std::string& a_key, const std::vector<RE::TESForm*>* a_set = nullptr)
+		{
+			const bool gearSet = a_set && a_set->size() > 1;
 			const auto   list = st.list;
 			const auto&  colors = *st.colors;
 			const float  size = st.size;
@@ -504,8 +578,9 @@ namespace UI
 				const bool available = Actions::IsAvailable(a_form);
 				const bool affordable = Actions::CanAfford(a_form, a_hand);
 				const auto tint = !available ? st.unavailable : !affordable ? st.noMagicka : st.white;
-				const auto icon = Icons::ForForm(a_form);
-				if (nordic) {
+				if (gearSet) {
+					DrawGearSet(st, g, *a_set);
+				} else if (const auto icon = Icons::ForForm(a_form); nordic) {
 					DrawIcon(list, icon, g.iconMin, g.iconMax, tint);
 				} else {
 					DrawIconPoly(list, icon, g.icon, g.iconMin, g.iconMax, tint);
@@ -553,7 +628,7 @@ namespace UI
 				}
 
 				// item count
-				if (st.showItemCount) {
+				if (st.showItemCount && !gearSet) {
 					if (const auto items = Actions::ItemCount(a_form); items >= 0) {
 						DrawText(list, st.smallSize, ImVec2{ p0.x + size * 0.08f, p1.y - st.smallSize - size * 0.04f }, std::to_string(items), colors.text, alpha);
 					}
@@ -675,11 +750,15 @@ namespace UI
 				const auto&  offset = settings.slotOffsets[slot];
 				const ImVec2 p0{ a_origin.x + (slot % cols) * (barSize + a_spacing) + offset[0] * scale * shrink,
 					a_origin.y + (slot / cols) * (barSize + a_spacing) + offset[1] * scale * shrink };
-				// equipped (spell in hand, current power, worn item) or picked for the Oblivion style cast / potion key
-				const bool marked = form && (Actions::IsEquipped(form) || (oblivion && (form == readySpell || form == readyPotion)));
-				const bool casting = castInfo && castInfo->page == a_page && castInfo->slot == slot;
-				DrawSlot(a_style, p0, form, Bindings::Get(a_page, slot).hand, marked, casting ? &*castInfo : nullptr,
-					a_front && settings.showKeyLabels ? Hotkeys::Label(settings, settings.slotKeys[slot]) : std::string{});
+				// equipped (spell in hand, current power, worn item, whole gear set) or picked for the Oblivion style cast /
+				// potion key
+				const auto& binding = Bindings::Get(a_page, slot);
+				const auto  set = binding.IsGearSet() ? Bindings::ItemForms(binding) : std::vector<RE::TESForm*>{};
+				const bool  worn = form && (binding.IsGearSet() ? Actions::IsWorn(binding) : Actions::IsEquipped(form));
+				const bool  marked = worn || (form && oblivion && (form == readySpell || form == readyPotion));
+				const bool  casting = castInfo && castInfo->page == a_page && castInfo->slot == slot;
+				DrawSlot(a_style, p0, form, binding.hand, marked, casting ? &*castInfo : nullptr,
+					a_front && settings.showKeyLabels ? Hotkeys::Label(settings, settings.slotKeys[slot]) : std::string{}, &set);
 				if (a_front && ctx->preview && slot == PreviewSlot()) {
 					DrawHighlight(a_style, p0, Geometry(a_style, p0), Color(255, 210, 100, 1.0f), 0.08f);
 				}

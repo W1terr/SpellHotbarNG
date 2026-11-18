@@ -57,4 +57,5 @@ namespace Actions
 	bool IsAvailable(RE::TESForm* a_form);     // known spell / owned item
 	int  ItemCount(RE::TESForm* a_form);       // -1 for things without a count
 	bool IsEquipped(RE::TESForm* a_form);
+	bool IsWorn(const SlotBinding& a_binding);  // a gear set: all of its owned items equipped
 }
