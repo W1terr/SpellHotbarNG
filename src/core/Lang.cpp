@@ -1,6 +1,7 @@
 #include "core/Lang.h"
 
 #include "core/Config.h"
+#include "core/Util.h"
 
 namespace Lang
 {
@@ -38,7 +39,7 @@ namespace Lang
 			const auto    path = Config::DataDir() / "lang" / std::format("{}.json", a_language.id);
 			std::ifstream file(path);
 			if (!file) {
-				logs::error("Missing {}, the menu stays in English", path.string());
+				logs::error("Missing {}, the menu stays in English", Util::ToUtf8(path));
 				return;
 			}
 			try {
@@ -48,9 +49,9 @@ namespace Lang
 						table.emplace(english, text.get<std::string>());
 					}
 				}
-				logs::info("Loaded {} texts from {}", table.size(), path.string());
+				logs::info("Loaded {} texts from {}", table.size(), Util::ToUtf8(path));
 			} catch (const std::exception& e) {
-				logs::error("Failed to read {}: {}", path.string(), e.what());
+				logs::error("Failed to read {}: {}", Util::ToUtf8(path), e.what());
 				table.clear();
 			}
 		}

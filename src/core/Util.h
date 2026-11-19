@@ -10,6 +10,12 @@ namespace Util
 	// without leading / trailing spaces, tabs and line breaks
 	std::string_view Trim(std::string_view a_text);
 
+	// Paths <-> UTF-8 text. path::string() / generic_string() throw for letters missing in the system code page (a
+	// folder named in Chinese on an English Windows), so names from other mods' files go through these.
+	std::filesystem::path FromUtf8(std::string_view a_text);
+	std::string           ToUtf8(const std::filesystem::path& a_path);
+	std::string           ToUtf8Generic(const std::filesystem::path& a_path);  // with / between folders
+
 	// "Plugin.esp|0x00ABCD" <-> form id (0 / empty if the plugin is not loaded). Light plugins are supported.
 	std::string ToPluginKey(RE::FormID a_form);
 	RE::FormID  FromPluginKey(std::string_view a_key);

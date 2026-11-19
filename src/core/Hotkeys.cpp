@@ -334,13 +334,13 @@ namespace Hotkeys
 			}
 			const auto value = ParseUInt(Trim(text.substr(eq + 1)));
 			if (!value || *value >= Keys::kGamepadOffset + 16) {
-				logs::warn("{}: ignoring {} = {}", Path().string(), name, Trim(text.substr(eq + 1)));
+				logs::warn("{}: ignoring {} = {}", Util::ToUtf8(Path()), name, Trim(text.substr(eq + 1)));
 				continue;
 			}
 			*it->second = *value;
 			++count;
 		}
-		logs::info("Read {} key(s) from {}", count, Path().string());
+		logs::info("Read {} key(s) from {}", count, Util::ToUtf8(Path()));
 	}
 
 	void Write(const Settings& a_settings)
@@ -376,7 +376,7 @@ namespace Hotkeys
 		std::filesystem::create_directories(Path().parent_path(), ec);
 		std::ofstream file(Path(), std::ios::trunc);
 		if (!file) {
-			logs::error("Failed to write {}", Path().string());
+			logs::error("Failed to write {}", Util::ToUtf8(Path()));
 			return;
 		}
 		file << text;

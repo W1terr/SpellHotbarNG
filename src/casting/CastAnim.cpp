@@ -513,9 +513,9 @@ namespace CastAnim
 				const auto    release = j.value("releaseTime", json::object());
 				const int     count = ReadTimings(release.value("thirdPerson", json::object()), false) +
 				                  ReadTimings(release.value("firstPerson", json::object()), true);
-				logs::info("Animation timings {}: {} release times", path.filename().string(), count);
+				logs::info("Animation timings {}: {} release times", Util::ToUtf8(path.filename()), count);
 			} catch (const std::exception& e) {
-				logs::error("Failed to read animation timings {}: {}", path.string(), e.what());
+				logs::error("Failed to read animation timings {}: {}", Util::ToUtf8(path), e.what());
 			}
 		}
 	}

@@ -9,6 +9,23 @@ namespace Util
 		return out;
 	}
 
+	std::filesystem::path FromUtf8(std::string_view a_text)
+	{
+		return std::filesystem::path(std::u8string(a_text.begin(), a_text.end()));
+	}
+
+	std::string ToUtf8(const std::filesystem::path& a_path)
+	{
+		const auto text = a_path.u8string();
+		return std::string(text.begin(), text.end());
+	}
+
+	std::string ToUtf8Generic(const std::filesystem::path& a_path)
+	{
+		const auto text = a_path.generic_u8string();
+		return std::string(text.begin(), text.end());
+	}
+
 	std::string_view Trim(std::string_view a_text)
 	{
 		const auto first = a_text.find_first_not_of(" \t\r\n");

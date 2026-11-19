@@ -3,21 +3,7 @@
 #include "core/Bindings.h"
 #include "core/Hotkeys.h"
 #include "core/Lang.h"
-
-namespace
-{
-	// Profile names can have any letters, path::string() would throw for those missing in the system code page
-	std::filesystem::path FromUtf8(const std::string& a_str)
-	{
-		return std::filesystem::path(std::u8string(a_str.begin(), a_str.end()));
-	}
-
-	std::string ToUtf8(const std::filesystem::path& a_path)
-	{
-		const auto str = a_path.u8string();
-		return std::string(str.begin(), str.end());
-	}
-}
+#include "core/Util.h"
 
 namespace Config
 {
@@ -101,7 +87,7 @@ namespace Config
 		try {
 			return json::parse(file, nullptr, true, true);
 		} catch (const std::exception& e) {
-			logs::error("Failed to parse {}: {}", ToUtf8(a_path), e.what());
+			logs::error("Failed to parse {}: {}", Util::ToUtf8(a_path), e.what());
 			return std::nullopt;
 		}
 	}
@@ -112,7 +98,7 @@ namespace Config
 		std::filesystem::create_directories(a_path.parent_path(), ec);
 		std::ofstream file(a_path, std::ios::trunc);
 		if (!file) {
-			logs::error("Failed to write {}", ToUtf8(a_path));
+			logs::error("Failed to write {}", Util::ToUtf8(a_path));
 			return false;
 		}
 		file << a_json.dump(2);
@@ -367,7 +353,7 @@ namespace Config
 			if (version < kFileVersion) {
 				MarkDirty();  // rewrite without the removed options
 			}
-			logs::info("Loaded settings from {}", ToUtf8(path));
+			logs::info("Loaded settings from {}", Util::ToUtf8(path));
 		} else {
 			logs::info("No settings file yet, using defaults");
 			Lang::Set("english");
@@ -375,7 +361,7 @@ namespace Config
 		Hotkeys::Read(settings);
 		if (moved) {
 			Save();  // also writes Hotkeys.ini
-			logs::info("Settings moved to {}", ToUtf8(SettingsPath()));
+			logs::info("Settings moved to {}", Util::ToUtf8(SettingsPath()));
 		} else {
 			Hotkeys::Write(settings);  // there before hotkey tools scan (Hotkey Atlas: after kDataLoaded)
 		}
@@ -466,7 +452,7 @@ namespace Profiles
 		}
 		for (const auto& file : std::filesystem::directory_iterator(Dir(), ec)) {
 			if (file.is_regular_file() && file.path().extension() == ".json") {
-				out.push_back({ ToUtf8(file.path().stem()), file.path() });
+				out.push_back({ Util::ToUtf8(file.path().stem()), file.path() });
 			}
 		}
 		std::ranges::sort(out, {}, &Entry::name);
@@ -486,7 +472,7 @@ namespace Profiles
 		if (a_includeBindings) {
 			j["bindings"] = Bindings::ToJson();
 		}
-		if (!Config::WriteJsonFile(Dir() / FromUtf8(name + ".json"), j)) {
+		if (!Config::WriteJsonFile(Dir() / Util::FromUtf8(name + ".json"), j)) {
 			return false;
 		}
 		logs::info("Saved profile '{}' (bindings: {})", name, a_includeBindings);

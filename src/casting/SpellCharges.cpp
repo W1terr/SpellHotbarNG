@@ -1,6 +1,7 @@
 #include "casting/SpellCharges.h"
 
 #include "core/Config.h"
+#include "core/Util.h"
 
 namespace SpellCharges
 {
@@ -108,7 +109,7 @@ namespace SpellCharges
 			try {
 				std::ifstream file(entry.path());
 				const auto    j = json::parse(file, nullptr, true, true);
-				const auto    name = j.value("name", entry.path().stem().string());
+				const auto    name = j.value("name", Util::ToUtf8(entry.path().stem()));
 				for (const auto& item : j.value("spellCharges", json::array())) {
 					const auto plugin = item.value("plugin", "");
 					Rule       rule{ .name = name };
@@ -126,7 +127,7 @@ namespace SpellCharges
 					rules.push_back(std::move(rule));
 				}
 			} catch (const std::exception& e) {
-				logs::error("Failed to read compatibility file {}: {}", entry.path().string(), e.what());
+				logs::error("Failed to read compatibility file {}: {}", Util::ToUtf8(entry.path()), e.what());
 			}
 		}
 		for (const auto& rule : rules) {

@@ -662,7 +662,7 @@ namespace Replacers
 						}
 					}
 				} catch (const std::exception& e) {
-					logs::error("Failed to read animation patch {}: {}", entry.path().string(), e.what());
+					logs::error("Failed to read animation patch {}: {}", Util::ToUtf8(entry.path()), e.what());
 				}
 			}
 			return out;
@@ -678,7 +678,7 @@ namespace Replacers
 						std::ifstream file(path);
 						return json::parse(file, nullptr, true, true);
 					} catch (const std::exception& e) {
-						logs::warn("Casting animations: can't read {}: {}", path.string(), e.what());
+						logs::warn("Casting animations: can't read {}: {}", Util::ToUtf8(path), e.what());
 						return std::nullopt;
 					}
 				}
@@ -690,12 +690,12 @@ namespace Replacers
 		// replacementAnimDatas (or none if the whole animation is off), sorted so the output stays the same
 		std::vector<fs::path> VariantFiles(const fs::path& a_dir, const json& a_config)
 		{
-			const auto                      dirName = ToLower(a_dir.filename().string());
+			const auto                      dirName = ToLower(Util::ToUtf8(a_dir.filename()));
 			std::unordered_set<std::string> disabled;
 			for (const auto& data : a_config.value("replacementAnimDatas", json::array())) {
 				auto path = data.value("path", "");
 				std::ranges::replace(path, '\\', '/');
-				if (ToLower(fs::path(path).filename().string()) != dirName) {
+				if (ToLower(Util::ToUtf8(Util::FromUtf8(path).filename())) != dirName) {
 					continue;
 				}
 				if (data.value("disabled", false)) {
@@ -710,7 +710,7 @@ namespace Replacers
 			std::vector<fs::path> files;
 			std::error_code       ec;
 			for (const auto& entry : fs::directory_iterator(a_dir, ec)) {
-				const auto name = ToLower(entry.path().filename().string());
+				const auto name = ToLower(Util::ToUtf8(entry.path().filename()));
 				if (entry.is_regular_file(ec) && name.ends_with(".hkx") && !disabled.contains(name)) {
 					files.push_back(entry.path());
 				}
@@ -743,7 +743,7 @@ namespace Replacers
 				Folder                                                 folder{ .view = a_view, .priority = a_priority, .dir = a_dir };
 				std::unordered_map<std::string, std::vector<fs::path>> files;
 				for (const auto& entry : fs::directory_iterator(a_dir, ec)) {
-					const auto name = ToLower(entry.path().filename().string());
+					const auto name = ToLower(Util::ToUtf8(entry.path().filename()));
 					if (entry.is_regular_file(ec)) {
 						files.try_emplace(name, std::vector{ entry.path() });
 					} else if (a_oarConfig && name.starts_with(kVariantsPrefix) && entry.is_directory(ec)) {
@@ -767,14 +767,14 @@ namespace Replacers
 				}
 				std::string error;
 				if (!a_conditions(folder.groups, error)) {
-					logs::warn("Casting animations: {} skipped ({})", a_dir.string(), error);
+					logs::warn("Casting animations: {} skipped ({})", Util::ToUtf8(a_dir), error);
 					return;
 				}
 				std::size_t fileCount = 0;
 				for (const auto& paths : folder.clips | std::views::values) {
 					fileCount += paths.size();
 				}
-				logs::info("Casting animations: {} ({} clips, {} files)", a_dir.string(), folder.clips.size(), fileCount);
+				logs::info("Casting animations: {} ({} clips, {} files)", Util::ToUtf8(a_dir), folder.clips.size(), fileCount);
 				folders.push_back(std::move(folder));
 			};
 
@@ -787,7 +787,7 @@ namespace Replacers
 					if (!entry.is_directory(ec)) {
 						continue;
 					}
-					const auto name = entry.path().filename().string();
+					const auto name = Util::ToUtf8(entry.path().filename());
 					int        priority = 0;
 					if (name.find_first_not_of("-0123456789"sv) != std::string::npos ||
 						std::from_chars(name.data(), name.data() + name.size(), priority).ec != std::errc{} || !a_patched.dar.contains(priority)) {
@@ -799,7 +799,7 @@ namespace Replacers
 						try {
 							std::ifstream file(user);
 							if (json::parse(file, nullptr, true, true).value("disabled", false)) {
-								logs::info("Casting animations: {} is disabled in OAR, skipped", entry.path().string());
+								logs::info("Casting animations: {} is disabled in OAR, skipped", Util::ToUtf8(entry.path()));
 								continue;
 							}
 						} catch (const std::exception&) {
@@ -812,7 +812,7 @@ namespace Replacers
 			}
 
 			for (const auto& [entry, substitutes] : a_patched.oar) {
-				const auto dir = fs::path("Data") / fs::path(std::u8string(entry.begin(), entry.end()));
+				const auto dir = fs::path("Data") / Util::FromUtf8(entry);
 				if (!fs::is_directory(dir, ec)) {
 					continue;  // that mod isn't installed
 				}
@@ -821,7 +821,7 @@ namespace Replacers
 					continue;
 				}
 				if (config->value("disabled", false)) {
-					logs::info("Casting animations: {} is disabled in OAR, skipped", dir.string());
+					logs::info("Casting animations: {} is disabled in OAR, skipped", Util::ToUtf8(dir));
 					continue;
 				}
 				const int view = ToLower(entry).find("_1stperson") != std::string::npos ? 1 : 0;
@@ -924,7 +924,7 @@ namespace Replacers
 					const auto name = std::format("locomotion_{}", variant);
 					const json config{
 						{ "name", name },
-						{ "description", std::format("walk / run while casting, from {}", folder.dir.generic_string()) },
+						{ "description", std::format("walk / run while casting, from {}", Util::ToUtf8Generic(folder.dir)) },
 						{ "priority", kPriorityBase + count++ },
 						{ "interruptible", false },
 						{ "conditions", json::array({ CastingCondition(0, kHandAny, variant, -1) }) },
@@ -950,7 +950,7 @@ namespace Replacers
 						move ? "_move"sv : ""sv, variant);
 					json config{
 						{ "name", name },
-						{ "description", std::format("{} clip from {}", kRoleNames[source.role], folder.dir.generic_string()) },
+						{ "description", std::format("{} clip from {}", kRoleNames[source.role], Util::ToUtf8Generic(folder.dir)) },
 						{ "priority", kPriorityBase + count++ },
 						{ "interruptible", move },
 						{ "conditions", json::array({ CastingCondition(static_cast<int>(row.type), row.hand, variant, move ? source.role + 1 : 0) }) },
@@ -982,11 +982,11 @@ namespace Replacers
 			std::uint64_t   hash = Fnv1a(std::to_string(kGeneratorVersion));
 			std::error_code ec;
 			for (const auto& file : a_files) {
-				hash = Fnv1a(file.path.generic_string(), hash);
+				hash = Fnv1a(Util::ToUtf8Generic(file.path), hash);
 				if (file.source.empty()) {
 					hash = Fnv1a(file.text, hash);
 				} else {
-					hash = Fnv1a(file.source.generic_string(), hash);
+					hash = Fnv1a(Util::ToUtf8Generic(file.source), hash);
 					hash = Fnv1a(std::to_string(fs::file_size(file.source, ec)), hash);
 					hash = Fnv1a(std::to_string(fs::last_write_time(file.source, ec).time_since_epoch().count()), hash);
 				}
@@ -1001,7 +1001,7 @@ namespace Replacers
 			if (sources.empty()) {
 				if (fs::exists(root, ec)) {
 					fs::remove_all(root, ec);
-					logs::info("Casting animations: no replacers installed, removed {}", root.string());
+					logs::info("Casting animations: no replacers installed, removed {}", Util::ToUtf8(root));
 				}
 				return;
 			}
@@ -1012,7 +1012,7 @@ namespace Replacers
 				std::string previous;
 				std::getline(manifest, previous);
 				if (previous == signature) {
-					logs::info("Casting animations: {} is up to date", root.string());
+					logs::info("Casting animations: {} is up to date", Util::ToUtf8(root));
 					return;
 				}
 			}
@@ -1027,7 +1027,7 @@ namespace Replacers
 				if (file.source.empty()) {
 					out << file.text;
 				} else {
-					auto& bytes = clipCache[file.source.string()];
+					auto& bytes = clipCache[Util::ToUtf8(file.source)];
 					if (bytes.empty()) {
 						bytes = ReadFile(file.source);
 					}
@@ -1036,7 +1036,7 @@ namespace Replacers
 				written += static_cast<bool>(out);
 			}
 			std::ofstream(root / kManifest) << signature << '\n';
-			logs::info("Casting animations: wrote {} of {} files to {}", written, files.size(), root.string());
+			logs::info("Casting animations: wrote {} of {} files to {}", written, files.size(), Util::ToUtf8(root));
 		}
 	}
 
@@ -1103,7 +1103,7 @@ namespace Replacers
 						const auto index = list[k + std::uniform_int_distribution<std::size_t>(0, variants - 1)(Rng())];
 						chosen[view * kRoleCount + role] = static_cast<int>(index) + 1;
 						logs::debug("Casting animation {} ({}): {} from {}", kRows[*row].folder, view ? "1st person"sv : "3rd person"sv,
-							kRoleNames[role], (role == kLocomotion ? folders[folder].dir : sources[index].file).string());
+							kRoleNames[role], Util::ToUtf8(role == kLocomotion ? folders[folder].dir : sources[index].file));
 						break;
 					}
 				}

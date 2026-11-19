@@ -75,7 +75,7 @@ namespace Icons
 		// Vanilla atlases first so spell packs can override vanilla forms (e.g. Mysticism)
 		int LoadOrder(const std::filesystem::path& a_path)
 		{
-			const auto stem = a_path.stem().string();
+			const auto stem = Util::ToUtf8(a_path.stem());
 			if (stem.starts_with("ui")) {
 				return 0;
 			}
@@ -91,7 +91,7 @@ namespace Icons
 			dds.replace_extension(".dds");
 			std::error_code ec;
 			if (!std::filesystem::exists(dds, ec)) {
-				logs::warn("Icon list {} has no texture next to it", a_csv.string());
+				logs::warn("Icon list {} has no texture next to it", Util::ToUtf8(a_csv));
 				return;
 			}
 
@@ -123,7 +123,7 @@ namespace Icons
 					if (std::ranges::find(kNotChoices, key) == std::end(kNotChoices) && pictures.emplace(icon.u0, icon.v0).second) {
 						const auto name = cols.size() > 5 && !cols[5].empty() ? cols[5] : key;
 						choices.push_back({ std::string(key), key.starts_with('@') ? PrettyName(name) : std::string(name),
-							a_csv.stem().string(), icon });
+							Util::ToUtf8(a_csv.stem()), icon });
 					}
 				}
 				if (key.starts_with('@')) {
@@ -137,7 +137,7 @@ namespace Icons
 					++missing;
 				}
 			}
-			logs::info("Icons {}: {} forms ({} from plugins that are not loaded)", a_csv.filename().string(), forms, missing);
+			logs::info("Icons {}: {} forms ({} from plugins that are not loaded)", Util::ToUtf8(a_csv.filename()), forms, missing);
 		}
 
 		// Icon packs made for SpellHotbar2 (e.g. "SpellHotbar2 - Icon Packs Hub"): a DDS (or PNG) atlas with a tab separated
@@ -179,7 +179,7 @@ namespace Icons
 			const auto nameColumn = columns.contains("Name") ? columns["Name"] : std::string::npos;
 
 			const int  atlas = static_cast<int>(atlases.size());
-			const auto stem = a_csv.stem().string();
+			const auto stem = Util::ToUtf8(a_csv.stem());
 			atlases.push_back(image.string());
 			std::set<std::pair<float, float>> pictures;
 			int                               forms = 0, missing = 0;
@@ -210,7 +210,7 @@ namespace Icons
 					++missing;
 				}
 			}
-			logs::info("SpellHotbar2 icons {}: {} forms ({} from plugins that are not loaded)", a_csv.filename().string(), forms, missing);
+			logs::info("SpellHotbar2 icons {}: {} forms ({} from plugins that are not loaded)", Util::ToUtf8(a_csv.filename()), forms, missing);
 		}
 
 		void LoadSpellHotbar2Atlases()
@@ -227,7 +227,7 @@ namespace Icons
 			}
 			// SpellHotbar2's vanilla lists first, so packs for spell mods win (its own order)
 			std::ranges::sort(lists, [](const auto& a, const auto& b) {
-				const bool va = a.stem().string().starts_with("icons_vanilla"), vb = b.stem().string().starts_with("icons_vanilla");
+				const bool va = Util::ToUtf8(a.stem()).starts_with("icons_vanilla"), vb = Util::ToUtf8(b.stem()).starts_with("icons_vanilla");
 				return va != vb ? va : a.filename() < b.filename();
 			});
 			for (const auto& list : lists) {
@@ -368,7 +368,7 @@ namespace Icons
 		const auto dir = Config::DataDir() / "icons";
 		std::error_code ec;
 		if (!std::filesystem::is_directory(dir, ec)) {
-			logs::error("Icon folder {} is missing", dir.string());
+			logs::error("Icon folder {} is missing", Util::ToUtf8(dir));
 			return;
 		}
 
