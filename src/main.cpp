@@ -6,6 +6,7 @@
 #include "casting/SpellCharges.h"
 #include "casting/SpellTiming.h"
 #include "casting/TrueDirectionalMovement.h"
+#include "casting/VanillaCast.h"
 #include "core/Bindings.h"
 #include "core/Config.h"
 #include "core/GridInventory.h"
@@ -54,7 +55,9 @@ namespace
 				Config::Load();
 				CastAnim::LoadTimings();
 				SpellCharges::Load();
+				VanillaCast::LoadCompat();
 				SpellTiming::Load();
+				SpellTiming::LoadCompat();
 			}
 			ItemIcons::Register();
 			if (!UI::Register()) {

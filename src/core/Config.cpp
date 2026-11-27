@@ -29,6 +29,7 @@ namespace Config
 			{ "channeling", &BarColors::channeling },
 			{ "noMagicka", &BarColors::noMagicka },
 			{ "picked", &BarColors::picked },
+			{ "ready", &BarColors::ready },
 		};
 
 		template <class T>
@@ -149,6 +150,7 @@ namespace Config
 		j["showKeyLabels"] = s.showKeyLabels;
 		j["showPageName"] = s.showPageName;
 		j["showCooldownText"] = s.showCooldownText;
+		j["cooldownReadyGlow"] = s.cooldownReadyGlow;
 		j["showItemCount"] = s.showItemCount;
 		j["showInMenus"] = s.showInMenus;
 		j["menuPosition"] = s.menuPosition;
@@ -236,6 +238,7 @@ namespace Config
 		Read(j, "showKeyLabels", s.showKeyLabels);
 		Read(j, "showPageName", s.showPageName);
 		Read(j, "showCooldownText", s.showCooldownText);
+		Read(j, "cooldownReadyGlow", s.cooldownReadyGlow);
 		Read(j, "showItemCount", s.showItemCount);
 		Read(j, "showInMenus", s.showInMenus);
 		Read(j, "menuPosition", s.menuPosition);

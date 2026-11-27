@@ -449,6 +449,9 @@ namespace UI
 		Changed(Checkbox(Id("Show key labels", "showKeyLabels").c_str(), &s.showKeyLabels));
 		Changed(Checkbox(Id("Show which extra bar is active", "showPageName").c_str(), &s.showPageName));
 		Changed(Checkbox(Id("Show cooldown seconds", "showCooldownText").c_str(), &s.showCooldownText));
+		Changed(Checkbox(Id("Glow when a cooldown ends", "cooldownReadyGlow").c_str(), &s.cooldownReadyGlow));
+		Help("For cooldowns of 2 seconds or more (Spell Timing, shouts, powers),\n"
+			 "not the short wait after every cast.");
 		Changed(Checkbox(Id("Show item counts", "showItemCount").c_str(), &s.showItemCount));
 
 		SeparatorText(T("Colors"));
@@ -461,6 +464,7 @@ namespace UI
 		ColorOption("Hand marker", c.handMarker, "The L / R / D letter of slots bound to a specific hand.");
 		ColorOption("Equipped highlight", c.equipped);
 		ColorOption("Cooldown overlay", c.cooldown);
+		ColorOption("Cooldown ready glow", c.ready);
 		ColorOption("Charge bar", c.chargeBar);
 		ColorOption("Channeling glow", c.channeling, "Highlight of a running concentration spell.");
 		ColorOption("Not enough magicka", c.noMagicka, "Icon tint when the spell costs more magicka than you have.");

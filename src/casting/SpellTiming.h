@@ -25,6 +25,10 @@ namespace SpellTiming
 
 	// Reads the file (after the game data is loaded)
 	void Load();
+	// Data\SKSE\Plugins\SpellHotbarNG\compat\*.json "powerCooldowns": [{ "plugin", "power", "cooldownGlobal" }]: a
+	// power whose cooldown is its mod's own setting (the MCM slider's global, Ciri Abilities). The bar only shows it
+	// (Get / StartCooldown read the global); the mod's menu is the one place to change it.
+	void LoadCompat();
 
 	Timing Get(const RE::TESForm* a_form);
 	// a_write: save the file too (not while a slider is being dragged)

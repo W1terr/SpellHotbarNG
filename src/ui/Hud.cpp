@@ -293,6 +293,59 @@ namespace UI
 		float                                 opacity{ 0.0f };  // animated bar opacity
 		std::chrono::steady_clock::time_point lastFrame{};
 
+		// A cooldown of kCooldownTextMinTotal or more that ended: the slot glows for a moment. The short wait after every
+		// cast doesn't count. Watched for every bound form, so a bar shown again later doesn't miss it.
+		constexpr float kReadyGlowTime = 0.6f;
+		constexpr float kReadyGlowRise = 0.1f;
+
+		std::unordered_map<RE::FormID, bool>                                  cooling;
+		std::unordered_map<RE::FormID, std::chrono::steady_clock::time_point> readyAt;
+
+		void WatchCooldowns(const Settings& a_settings, std::chrono::steady_clock::time_point a_now)
+		{
+			const auto ui = RE::UI::GetSingleton();
+			// a loaded save brings other cooldowns: no glow for the ones that are simply gone
+			if (!a_settings.cooldownReadyGlow || !ui || ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME)) {
+				cooling.clear();
+				readyAt.clear();
+				return;
+			}
+			const auto watch = [&](RE::TESForm* a_form) {
+				if (!a_form) {
+					return;
+				}
+				const auto [remaining, total] = Actions::Cooldown(a_form);
+				auto& was = cooling[a_form->GetFormID()];
+				if (was && remaining <= 0.0f) {
+					readyAt[a_form->GetFormID()] = a_now;
+				}
+				was = remaining > 0.0f && total >= kCooldownTextMinTotal;
+			};
+			for (int page = 0; page < kPageCount; ++page) {
+				for (int slot = 0; slot < a_settings.slotCount; ++slot) {
+					watch(Bindings::GetForm(static_cast<Page>(page), slot));
+				}
+			}
+			watch(Bindings::GetForm(Page::kMain, kReadySpellSlot));
+			watch(Bindings::GetForm(Page::kMain, kReadyPotionSlot));
+		}
+
+		// 0..1 strength of a form's ready glow: a quick rise, then it fades out
+		float ReadyGlow(const RE::TESForm* a_form)
+		{
+			const auto it = readyAt.find(a_form->GetFormID());
+			if (it == readyAt.end()) {
+				return 0.0f;
+			}
+			const float t = std::chrono::duration<float>(std::chrono::steady_clock::now() - it->second).count();
+			if (t >= kReadyGlowTime) {
+				readyAt.erase(it);
+				return 0.0f;
+			}
+			const float fade = t < kReadyGlowRise ? t / kReadyGlowRise : 1.0f - (t - kReadyGlowRise) / (kReadyGlowTime - kReadyGlowRise);
+			return fade * fade * (3.0f - 2.0f * fade);
+		}
+
 		float Approach(float a_value, float a_target, float a_step)
 		{
 			return a_value < a_target ? std::min(a_value + a_step, a_target) : std::max(a_value - a_step, a_target);
@@ -418,6 +471,7 @@ namespace UI
 			ImDrawList* list{ nullptr };
 			const BarColors* colors{ nullptr };
 			bool        showCooldownText{ true };
+			bool        readyGlow{ true };
 			bool        showItemCount{ true };
 			float       size{ 0.0f };
 			float       alpha{ 1.0f };
@@ -448,6 +502,7 @@ namespace UI
 			st.list = GetBackgroundDrawList();
 			st.colors = &colors;
 			st.showCooldownText = a_settings.showCooldownText;
+			st.readyGlow = a_settings.cooldownReadyGlow;
 			st.showItemCount = a_settings.showItemCount;
 			st.size = a_size;
 			st.alpha = a_alpha;
@@ -609,6 +664,12 @@ namespace UI
 					}
 				}
 
+				// the cooldown just ended: a short glow over the picture and along the frame
+				if (const float glow = st.readyGlow ? ReadyGlow(a_form) : 0.0f; glow > 0.0f) {
+					ImDrawListManager::AddConvexPolyFilled(list, g.icon.data(), static_cast<int>(g.icon.size()), Color(colors.ready, alpha * glow * 0.3f));
+					DrawHighlight(st, p0, g, Color(colors.ready, alpha * glow), 0.08f);
+				}
+
 				// charge / channel progress
 				if (a_cast) {
 					if (a_cast->channeling) {
@@ -674,6 +735,7 @@ namespace UI
 		lastFrame = now;
 		Bindings::UpdateFavorites(dt);  // here, not in the player update: the menus pause the game
 		const auto& settings = Config::Get();
+		WatchCooldowns(settings, now);
 		const auto  page = Input::CurrentPage();
 		const bool  oblivion = settings.keyMode == KeyMode::kOblivion;
 		// Oblivion style: the main bar only shows up for a moment after a slot key (picking or binding), always in the

@@ -18,6 +18,11 @@ namespace VanillaCast
 	// a_form is a TESShout or a power SpellItem. Returns false if another shout is still running (queue the press).
 	bool StartShout(RE::TESForm* a_form, Page a_page, int a_slot, std::uint32_t a_key, bool a_keyHeld);
 
+	// Data\SKSE\Plugins\SpellHotbarNG\compat\*.json "shoutKeyPlugins": powers / shouts of these plugins are used by
+	// sending the Shout button through the game's input events, so mods that watch the Shout key see it too (Ciri
+	// Abilities starts its abilities from the key, not from the cast)
+	void LoadCompat();
+
 	void OnKeyUp(std::uint32_t a_key);
 	void Update(float a_delta);
 	void Reset();

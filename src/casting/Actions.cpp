@@ -682,8 +682,12 @@ namespace Actions
 			}
 
 			switch (a_spell->GetSpellType()) {
-			case SpellType::kPower:
 			case SpellType::kLesserPower:
+				if (WaitsForCooldown(a_spell, a_page, a_slot, a_key, a_keyHeld)) {
+					return;
+				}
+				[[fallthrough]];
+			case SpellType::kPower:
 			case SpellType::kVoicePower:
 				if (!VanillaCast::StartShout(a_spell, a_page, a_slot, a_key, a_keyHeld)) {
 					LogPress(a_slot, a_spell, "waits for the running shout / power");
@@ -1225,6 +1229,9 @@ namespace Actions
 				}
 				if (type == SpellType::kSpell) {
 					return Longer({ gcdRemaining, gcdTotal }, SpellTiming::Cooldown(a_form));
+				}
+				if (type == SpellType::kLesserPower) {
+					return SpellTiming::Cooldown(a_form);
 				}
 				return { 0.0f, 0.0f };
 			}

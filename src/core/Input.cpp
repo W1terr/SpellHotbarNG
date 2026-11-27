@@ -38,6 +38,10 @@ namespace Input
 		bool                             mainBarModifierDown{ false };
 		bool                             mainBarKeyUsed{ false };  // the main bar key's press opened / closed the bar: its release is ours too
 		std::atomic<bool>                menuBarOpen{ false };     // opened with the menu bar key in a bind menu, closed when they all close
+		std::atomic<RE::FormID>          menuSelection{ 0 };       // the open menu's selected item, read in UI tasks (the HUD draws in Present)
+		std::atomic<bool>                selectionQueued{ false };
+
+		RE::TESForm* ReadMenuSelection();
 		bool                             menuBarKeyUsed{ false };  // the menu bar key's press opened / closed the bar: its release is ours too
 		std::uint32_t*                   captureTarget{ nullptr };
 
@@ -324,12 +328,12 @@ namespace Input
 		}
 
 		// The Oblivion style cast / potion key bind to their pseudo slots
-		void Bind(Page a_page, int a_slot)
+		void BindSelection(Page a_page, int a_slot, RE::TESForm* a_form)
 		{
 			const auto target = a_slot == kReadySpellSlot  ? std::string{ "cast key" } :
 			                    a_slot == kReadyPotionSlot ? std::string{ "potion key" } :
 			                                                 std::format("slot {} ({})", a_slot + 1, Config::PageName(a_page));
-			const auto form = MenuSelection();
+			const auto form = a_form;
 			if (!form) {
 				logs::info("Bind {}: no selected item found in the open menu", target);
 				RE::PlaySound("MAGFailSD");
@@ -367,6 +371,12 @@ namespace Input
 				RE::PlaySound("MAGFailSD");
 				break;
 			}
+		}
+
+		// the menu's list is read in a UI task: Scaleform objects are only safe there (the list may be rebuilt meanwhile)
+		void Bind(Page a_page, int a_slot)
+		{
+			SKSE::GetTaskInterface()->AddUITask([a_page, a_slot] { BindSelection(a_page, a_slot, ReadMenuSelection()); });
 		}
 
 		// A slot key press uses (or in a menu binds) the slot right away, on the page of the held modifier
@@ -616,6 +626,7 @@ namespace Input
 		                  (Config::Get().bindInFavorites && ui->IsMenuOpen(RE::FavoritesMenu::MENU_NAME));
 		if (!open) {
 			menuBarOpen = false;  // opened with the menu bar key: closed again for the next time
+			menuSelection = 0;    // no old selection shown for a frame when a menu opens again
 			return false;
 		}
 		// beast forms that can't cast from the bar (werewolf) don't bind either; a book read from the inventory covers it
@@ -624,66 +635,84 @@ namespace Input
 
 	RE::TESForm* MenuSelection()
 	{
-		const auto ui = RE::UI::GetSingleton();
-		if (!ui) {
-			return nullptr;
+		// the HUD asks every frame from the Present hook, where the menu's Flash list can be in the middle of a rebuild
+		// (items added while the inventory is open crashed in GFxValue::GetMember): read it in a UI task, show the last result
+		if (!selectionQueued.exchange(true)) {
+			SKSE::GetTaskInterface()->AddUITask([] {
+				const auto form = ReadMenuSelection();
+				menuSelection = form ? form->GetFormID() : 0;
+				selectionQueued = false;
+			});
 		}
+		const auto id = menuSelection.load();
+		return id ? RE::TESForm::LookupByID(id) : nullptr;
+	}
 
-		if (GridInventory::MenuOpen()) {
-			return GridInventory::Hovered();
-		}
-
-		if (const auto menu = ui->GetMenu<RE::MagicMenu>(); menu && menu->uiMovie) {
-			// SkyUI (SKSE extended data) puts the form id on the entry, approach from SpellHotbar2 / Wheeler
-			RE::GFxValue selection;
-			menu->uiMovie->GetVariable(&selection, "_root.Menu_mc.inventoryLists.itemList.selectedEntry.formId");
-			if (selection.IsNumber()) {
-				return RE::TESForm::LookupByID(static_cast<RE::FormID>(selection.GetNumber()));
-			}
-			// vanilla menu: the game's own list, indexed by the selected entry
-			const auto itemList = menu->GetRuntimeData().itemList;
-			const auto item = itemList ? itemList->GetSelectedItem() : nullptr;
-			return item ? item->data.baseForm : nullptr;
-		}
-
-		if (const auto menu = ui->GetMenu<RE::InventoryMenu>()) {
-			const auto itemList = menu->GetRuntimeData().itemList;
-			const auto item = itemList ? itemList->GetSelectedItem() : nullptr;
-			if (item && item->data.objDesc) {
-				return item->data.objDesc->GetObject();
-			}
-			return nullptr;
-		}
-
-		if (const auto menu = ui->GetMenu<RE::FavoritesMenu>()) {
-			auto& root = menu->GetRuntimeData().root;
-			if (!root.IsDisplayObject() || !root.HasMember("itemList")) {
+	namespace
+	{
+		RE::TESForm* ReadMenuSelection()
+		{
+			const auto ui = RE::UI::GetSingleton();
+			if (!ui) {
 				return nullptr;
 			}
-			RE::GFxValue itemList;
-			root.GetMember("itemList", &itemList);
-			if (!itemList.IsDisplayObject() || !itemList.HasMember("selectedEntry")) {
+
+			if (GridInventory::MenuOpen()) {
+				return GridInventory::Hovered();
+			}
+
+			if (const auto menu = ui->GetMenu<RE::MagicMenu>(); menu && menu->uiMovie) {
+				// SkyUI (SKSE extended data) puts the form id on the entry, approach from SpellHotbar2 / Wheeler
+				RE::GFxValue selection;
+				menu->uiMovie->GetVariable(&selection, "_root.Menu_mc.inventoryLists.itemList.selectedEntry.formId");
+				if (selection.IsNumber()) {
+					return RE::TESForm::LookupByID(static_cast<RE::FormID>(selection.GetNumber()));
+				}
+				// vanilla menu: the game's own list, indexed by the selected entry
+				const auto itemList = menu->GetRuntimeData().itemList;
+				const auto item = itemList ? itemList->GetSelectedItem() : nullptr;
+				return item ? item->data.baseForm : nullptr;
+			}
+
+			if (const auto menu = ui->GetMenu<RE::InventoryMenu>()) {
+				const auto itemList = menu->GetRuntimeData().itemList;
+				const auto item = itemList ? itemList->GetSelectedItem() : nullptr;
+				if (item && item->data.objDesc) {
+					return item->data.objDesc->GetObject();
+				}
 				return nullptr;
 			}
-			RE::GFxValue entry;
-			itemList.GetMember("selectedEntry", &entry);
-			if (entry.IsObject() && entry.HasMember("formId")) {
-				RE::GFxValue formId;
-				entry.GetMember("formId", &formId);
-				if (formId.IsNumber()) {
-					return RE::TESForm::LookupByID(static_cast<RE::FormID>(formId.GetNumber()));
+
+			if (const auto menu = ui->GetMenu<RE::FavoritesMenu>()) {
+				auto& root = menu->GetRuntimeData().root;
+				if (!root.IsDisplayObject() || !root.HasMember("itemList")) {
+					return nullptr;
+				}
+				RE::GFxValue itemList;
+				root.GetMember("itemList", &itemList);
+				if (!itemList.IsDisplayObject() || !itemList.HasMember("selectedEntry")) {
+					return nullptr;
+				}
+				RE::GFxValue entry;
+				itemList.GetMember("selectedEntry", &entry);
+				if (entry.IsObject() && entry.HasMember("formId")) {
+					RE::GFxValue formId;
+					entry.GetMember("formId", &formId);
+					if (formId.IsNumber()) {
+						return RE::TESForm::LookupByID(static_cast<RE::FormID>(formId.GetNumber()));
+					}
+				}
+				// vanilla menu: entries are in the order of the game's favorites array
+				RE::GFxValue index;
+				if (itemList.GetMember("selectedIndex", &index) && index.IsNumber()) {
+					const auto  idx = static_cast<std::int32_t>(index.GetNumber());
+					const auto& favorites = menu->GetRuntimeData().favorites;
+					if (idx >= 0 && static_cast<std::uint32_t>(idx) < favorites.size()) {
+						return favorites[idx].item;
+					}
 				}
 			}
-			// vanilla menu: entries are in the order of the game's favorites array
-			RE::GFxValue index;
-			if (itemList.GetMember("selectedIndex", &index) && index.IsNumber()) {
-				const auto  idx = static_cast<std::int32_t>(index.GetNumber());
-				const auto& favorites = menu->GetRuntimeData().favorites;
-				if (idx >= 0 && static_cast<std::uint32_t>(idx) < favorites.size()) {
-					return favorites[idx].item;
-				}
-			}
+			return nullptr;
 		}
-		return nullptr;
 	}
 }

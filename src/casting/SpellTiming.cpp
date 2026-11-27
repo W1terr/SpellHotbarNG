@@ -18,6 +18,22 @@ namespace SpellTiming
 		std::unordered_map<RE::FormID, Timing>     byForm;    // the same for loaded forms
 		std::unordered_map<RE::FormID, Running>    running;   // cooldowns ticking now
 
+		std::unordered_map<RE::FormID, RE::TESGlobal*> linked;  // powers whose cooldown is their mod's own setting
+
+		template <class T>
+		T* LookupCompatForm(const std::string& a_plugin, const json& a_id)
+		{
+			const auto handler = RE::TESDataHandler::GetSingleton();
+			if (!handler || !a_id.is_string()) {
+				return nullptr;
+			}
+			try {
+				return handler->LookupForm<T>(static_cast<RE::FormID>(std::stoul(a_id.get<std::string>(), nullptr, 16)), a_plugin);
+			} catch (const std::exception&) {
+				return nullptr;
+			}
+		}
+
 		std::filesystem::path FilePath()
 		{
 			return Config::DataDir() / "spell_timing.json";
@@ -93,9 +109,44 @@ namespace SpellTiming
 		return item && item->GetCastingType() != RE::MagicSystem::CastingType::kConcentration;
 	}
 
+	void LoadCompat()
+	{
+		std::scoped_lock guard(lock);
+		linked.clear();
+		std::error_code ec;
+		const auto      dir = Config::DataDir() / "compat";
+		if (!std::filesystem::is_directory(dir, ec)) {
+			return;
+		}
+		for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+			if (!entry.is_regular_file(ec) || entry.path().extension() != ".json") {
+				continue;
+			}
+			try {
+				std::ifstream file(entry.path());
+				const auto    j = json::parse(file, nullptr, true, true);
+				for (const auto& item : j.value("powerCooldowns", json::array())) {
+					const auto plugin = item.value("plugin", "");
+					const auto power = LookupCompatForm<RE::SpellItem>(plugin, item.value("power", json()));
+					const auto global = LookupCompatForm<RE::TESGlobal>(plugin, item.value("cooldownGlobal", json()));
+					if (!power || !global) {
+						continue;
+					}
+					linked[power->GetFormID()] = global;
+					logs::info("Compatibility: {} cooldown = {} ({:.1f} s)", power->GetName(), global->GetFormEditorID(), global->value);
+				}
+			} catch (const std::exception& e) {
+				logs::error("Failed to read compatibility file {}: {}", Util::ToUtf8(entry.path()), e.what());
+			}
+		}
+	}
+
 	Timing Get(const RE::TESForm* a_form)
 	{
 		std::scoped_lock guard(lock);
+		if (const auto it = a_form ? linked.find(a_form->GetFormID()) : linked.end(); it != linked.end()) {
+			return { 0.0f, std::clamp(it->second->value, 0.0f, kMaxCooldown) };
+		}
 		const auto       it = a_form ? byForm.find(a_form->GetFormID()) : byForm.end();
 		return it != byForm.end() ? it->second : Timing{};
 	}

@@ -1,4 +1,6 @@
 #include "casting/VanillaCast.h"
+#include "casting/SpellTiming.h"
+#include "core/Config.h"
 #include "core/Util.h"
 
 namespace VanillaCast
@@ -27,12 +29,77 @@ namespace VanillaCast
 			bool          timerJumped{ false };  // the shout recovery timer was set: the shout went off
 			float         lastTimer{ 0.0f };
 			float         idleTime{ 0.0f };      // since the voice went quiet again
+			bool          inputEvent{ false };   // the Shout button goes through the game's input events (compat)
 		};
 
 		std::optional<Shout> shout;
 		bool                 savedValid{ false };
 		RE::TESForm*         savedPower{ nullptr };
 		RE::ButtonEvent*     shoutEvent{ nullptr };
+		std::uint32_t        shoutKey{ 0x2C };  // the keyboard key of the Shout control (Z)
+		std::vector<std::string> shoutKeyPlugins;  // lower case plugin names
+
+		using Util::Player;
+
+		// Powers of mods that start from the Shout key (Ciri Abilities) never cast anything the game could report. They
+		// all move the player fast (blink, lunge, teleport): that is when the power went off and its cooldown starts. A
+		// press that does nothing ("no target") starts none.
+		struct DashWatch
+		{
+			RE::TESForm*                          form{ nullptr };
+			bool                                  held{ true };
+			float                                 timeLeft{ 0.0f };  // after the release, real seconds
+			RE::NiPoint3                          last;
+			std::chrono::steady_clock::time_point lastAt;
+		};
+		std::optional<DashWatch> dash;
+
+		constexpr float kDashSpeed = 2500.0f;   // units per second, sideways: running is ~400, sprinting ~600
+		constexpr float kDashWatchTime = 3.0f;  // after the release (Teleportation massacre strikes after it)
+
+		void StartDashWatch(RE::TESForm* a_form)
+		{
+			const auto player = Player();
+			if (!player) {
+				return;
+			}
+			dash = DashWatch{ a_form, true, kDashWatchTime, player->GetPosition(), std::chrono::steady_clock::now() };
+		}
+
+		void UpdateDashWatch()
+		{
+			const auto player = Player();
+			if (!dash || !player) {
+				return;
+			}
+			const auto  now = std::chrono::steady_clock::now();
+			const float dt = std::max(std::chrono::duration<float>(now - dash->lastAt).count(), 0.001f);
+			const auto  pos = player->GetPosition();
+			const float dx = pos.x - dash->last.x;
+			const float dy = pos.y - dash->last.y;
+			const float speed = std::sqrt(dx * dx + dy * dy) / dt;
+			dash->last = pos;
+			dash->lastAt = now;
+			if (speed > kDashSpeed) {
+				logs::debug("Power {}: went off (moved at {:.0f} units/s)", dash->form->GetName(), speed);
+				SpellTiming::StartCooldown(dash->form);
+				dash.reset();
+				return;
+			}
+			if (!dash->held) {
+				dash->timeLeft -= dt;
+				if (dash->timeLeft <= 0.0f) {
+					logs::debug("Power {}: didn't go off (no blink / teleport seen)", dash->form->GetName());
+					dash.reset();
+				}
+			}
+		}
+
+		bool UsesInputEvent(const RE::TESForm* a_form)
+		{
+			const auto file = a_form->GetFile(0);
+			return file && std::ranges::find(shoutKeyPlugins, Util::ToLower(file->GetFilename())) != shoutKeyPlugins.end();
+		}
 
 		constexpr float kEquipDelay = 0.1f;
 		constexpr float kMinHold = 0.1f;
@@ -42,8 +109,6 @@ namespace VanillaCast
 		constexpr float kTimerWait = 1.0f;      // after a shout, how long to wait for the recovery timer
 		constexpr float kFinishTimeout = 5.0f;
 		constexpr float kRestoreDelay = 0.3f;
-
-		using Util::Player;
 
 		RE::BGSEquipSlot* VoiceSlot()
 		{
@@ -56,8 +121,7 @@ namespace VanillaCast
 			if (shoutEvent) {
 				return;
 			}
-			const auto    userEvents = RE::UserEvents::GetSingleton();
-			std::uint32_t shoutKey = 0x2C;  // Z
+			const auto userEvents = RE::UserEvents::GetSingleton();
 			if (const auto controlMap = RE::ControlMap::GetSingleton()) {
 				const auto mapped = controlMap->GetMappedKey(userEvents->shout, RE::INPUT_DEVICE::kKeyboard);
 				if (mapped != 0xFF && mapped != static_cast<std::uint32_t>(-1)) {
@@ -67,16 +131,32 @@ namespace VanillaCast
 			shoutEvent = RE::ButtonEvent::Create(RE::INPUT_DEVICE::kKeyboard, userEvents->shout, shoutKey, 0.0f, 0.0f);
 		}
 
-		// Feeds a Shout button state to the shout handler like PlayerControls does for real input
-		void SendShout(float a_value, float a_held)
+		// Feeds a Shout button state to the shout handler like PlayerControls does for real input. a_inputEvent: sent to
+		// every input event sink instead (PlayerControls among them), like a real key press, but past the input hooks of
+		// SKSE Menu Framework / Hotkey Atlas (our own key handling never sees it)
+		void SendShout(float a_value, float a_held, bool a_inputEvent)
 		{
+			if (shoutEvent) {
+				// The event is kept for every press. Mods that swallow the Shout key blank its user event in place (Ciri
+				// Abilities does, for its own powers): without this every later press was no Shout button at all.
+				shoutEvent->SetUserEvent(RE::UserEvents::GetSingleton()->shout);
+				shoutEvent->SetIDCode(shoutKey);
+				shoutEvent->next = nullptr;
+				shoutEvent->GetRuntimeData().value = a_value;
+				shoutEvent->GetRuntimeData().heldDownSecs = a_held;
+			}
+			if (a_inputEvent) {
+				if (const auto devices = RE::BSInputDeviceManager::GetSingleton(); devices && shoutEvent) {
+					RE::InputEvent* const event = shoutEvent;
+					devices->SendEvent(&event);
+				}
+				return;
+			}
 			const auto controls = RE::PlayerControls::GetSingleton();
 			const auto handler = controls ? controls->shoutHandler : nullptr;
 			if (!handler || !shoutEvent) {
 				return;
 			}
-			shoutEvent->GetRuntimeData().value = a_value;
-			shoutEvent->GetRuntimeData().heldDownSecs = a_held;
 			if (handler->IsInputEventHandlingEnabled() && handler->CanProcess(shoutEvent)) {
 				handler->ProcessButton(shoutEvent, std::addressof(controls->data));
 			}
@@ -184,9 +264,41 @@ namespace VanillaCast
 		next.slot = a_slot;
 		next.key = a_key;
 		next.keyHeld = a_keyHeld;
+		next.inputEvent = UsesInputEvent(a_form);
 		shout = next;
-		logs::debug("Shout / power {}", a_form->GetName());
+		logs::debug("Shout / power {}{}", a_form->GetName(), next.inputEvent ? " (Shout key input event)" : "");
 		return true;
+	}
+
+	void LoadCompat()
+	{
+		shoutKeyPlugins.clear();
+		std::error_code ec;
+		const auto      dir = Config::DataDir() / "compat";
+		if (!std::filesystem::is_directory(dir, ec)) {
+			return;
+		}
+		const auto handler = RE::TESDataHandler::GetSingleton();
+		for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+			if (!entry.is_regular_file(ec) || entry.path().extension() != ".json") {
+				continue;
+			}
+			try {
+				std::ifstream file(entry.path());
+				const auto    j = json::parse(file, nullptr, true, true);
+				for (const auto& plugin : j.value("shoutKeyPlugins", json::array())) {
+					const auto name = plugin.get<std::string>();
+					if (!handler || !handler->LookupModByName(name)) {
+						logs::info("Compatibility: {} isn't loaded, skipped", name);
+						continue;
+					}
+					logs::info("Compatibility: powers and shouts of {} are used through the Shout key", name);
+					shoutKeyPlugins.push_back(Util::ToLower(name));
+				}
+			} catch (const std::exception& e) {
+				logs::error("Failed to read compatibility file {}: {}", Util::ToUtf8(entry.path()), e.what());
+			}
+		}
 	}
 
 	void OnKeyUp(std::uint32_t a_key)
@@ -198,6 +310,7 @@ namespace VanillaCast
 
 	void Update(float a_delta)
 	{
+		UpdateDashWatch();  // also after the shout part is over
 		if (!shout) {
 			if (savedValid) {
 				Restore();
@@ -217,18 +330,24 @@ namespace VanillaCast
 				shout->phase = Phase::kHolding;
 				shout->phaseTime = 0.0f;
 				shout->heldTime = 0.0f;
-				SendShout(1.0f, 0.0f);
+				if (shout->inputEvent) {
+					StartDashWatch(shout->form);
+				}
+				SendShout(1.0f, 0.0f, shout->inputEvent);
 			}
 			break;
 		case Phase::kHolding:
 			shout->heldTime += a_delta;
 			if (!shout->keyHeld && shout->heldTime >= kMinHold) {
-				SendShout(0.0f, shout->heldTime);
+				SendShout(0.0f, shout->heldTime, shout->inputEvent);
+				if (dash && dash->form == shout->form) {
+					dash->held = false;
+				}
 				shout->phase = Phase::kWaitFinish;
 				shout->phaseTime = 0.0f;
 				shout->lastTimer = player->GetVoiceRecoveryTime();
 			} else {
-				SendShout(1.0f, shout->heldTime);
+				SendShout(1.0f, shout->heldTime, shout->inputEvent);
 			}
 			break;
 		case Phase::kWaitFinish:
@@ -248,6 +367,7 @@ namespace VanillaCast
 
 	void Reset()
 	{
+		dash.reset();
 		shout.reset();
 		savedValid = false;
 		savedPower = nullptr;

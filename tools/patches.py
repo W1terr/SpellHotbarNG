@@ -163,7 +163,30 @@ ORDINATOR_VANCIAN_MAGIC = {
     },
 }
 
-COMPAT_PATCHES = [ORDINATOR_VANCIAN_MAGIC]
+CIRI_ABILITIES = {
+    "name": "Ciri Abilities",
+    "folder": "Ciri Abilities",
+    "plugin": "CiriAbilities.esp",
+    "description": "For \"Ciri Abilities\": its powers (Blink, Dimensional lunge, Echo of the Basilisk...) start from the "
+                   "Shout key, so the hotbar presses that key for them like you would. Tap a slot for a short blink, hold "
+                   "it for a long one. The slots show the powers' cooldowns, the ones set in Ciri Abilities' MCM. "
+                   "Turn the powers on in Ciri Abilities' MCM. Needs Ciri Abilities installed.",
+    "compat": {
+        "name": "Ciri Abilities",
+        "shoutKeyPlugins": ["CiriAbilities.esp"],
+        # power -> its MCM cooldown slider's global (Instant travel has none)
+        "powerCooldowns": [
+            {"plugin": "CiriAbilities.esp", "power": "0x846", "cooldownGlobal": "0x919"},  # Blink
+            {"plugin": "CiriAbilities.esp", "power": "0x802", "cooldownGlobal": "0x91E"},  # Dimensional lunge
+            {"plugin": "CiriAbilities.esp", "power": "0x804", "cooldownGlobal": "0x926"},  # Teleportation massacre
+            {"plugin": "CiriAbilities.esp", "power": "0x848", "cooldownGlobal": "0x930"},  # Echo of the Basilisk
+            {"plugin": "CiriAbilities.esp", "power": "0x84C", "cooldownGlobal": "0x937"},  # Recall
+            {"plugin": "CiriAbilities.esp", "power": "0x810", "cooldownGlobal": "0x947"},  # Teleportation
+        ],
+    },
+}
+
+COMPAT_PATCHES = [ORDINATOR_VANCIAN_MAGIC, CIRI_ABILITIES]
 
 
 def build_compat_patch(patch: dict, out_dir: Path) -> int:

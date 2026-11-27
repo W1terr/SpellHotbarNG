@@ -104,6 +104,7 @@ struct BarColors
 	RGBA channeling{ 160 / 255.0f, 200 / 255.0f, 1.0f, 1.0f };
 	RGBA noMagicka{ 1.0f, 110 / 255.0f, 110 / 255.0f, 1.0f };  // icon tint when the spell costs more than you have
 	RGBA picked{ 1.0f, 210 / 255.0f, 100 / 255.0f, 1.0f };     // slot picked with slot picking (held key + D-pad)
+	RGBA ready{ 1.0f, 235 / 255.0f, 170 / 255.0f, 1.0f };      // short glow when a slot's cooldown ends
 };
 
 struct Settings
@@ -137,6 +138,7 @@ struct Settings
 	bool       showKeyLabels{ true };
 	bool       showPageName{ true };
 	bool       showCooldownText{ true };
+	bool       cooldownReadyGlow{ true };  // a slot glows for a moment when its cooldown ends
 	bool       showItemCount{ true };
 	bool       showInMenus{ true };  // show the bar in the magic / inventory / favorites menu for binding
 	bool       menuPosition{ false };  // in those menus the bars sit where the menu* settings say
